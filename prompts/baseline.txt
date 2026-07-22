@@ -1,0 +1,9 @@
+Create a realistic fashion photoshoot using the supplied references in this order:
+1. the person/model image,
+2. the environment image,
+3. the garment packshot image(s).
+
+Dress the person in every supplied garment and place them naturally in the supplied environment.
+Preserve the garment's visible color, print or logo, material, shape, length, seams, closures, and other distinctive details. Do not invent branding or redesign the garment.
+
+{garment_roles}

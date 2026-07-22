@@ -1,0 +1,39 @@
+{
+  "cases": [
+    {
+      "id": "D01",
+      "split": "development",
+      "model": "inputs/models/black-bodysuit-woman.png",
+      "environment": "inputs/environments/street.png",
+      "garments": ["inputs/garments/shorts.png"]
+    },
+    {
+      "id": "D02",
+      "split": "development",
+      "model": "inputs/models/white-tee-man.png",
+      "environment": "inputs/environments/forest.png",
+      "garments": ["inputs/garments/sneakers.png"]
+    },
+    {
+      "id": "D03",
+      "split": "development",
+      "model": "inputs/models/cream-sweater-woman.png",
+      "environment": "inputs/environments/meadow.png",
+      "garments": ["inputs/garments/coat.png"]
+    },
+    {
+      "id": "H01",
+      "split": "holdout",
+      "model": "inputs/models/cream-sweater-woman.png",
+      "environment": "inputs/environments/street.png",
+      "garments": ["inputs/garments/sneakers.png"]
+    },
+    {
+      "id": "H02",
+      "split": "holdout",
+      "model": "inputs/models/white-tee-man.png",
+      "environment": "inputs/environments/meadow.png",
+      "garments": ["inputs/garments/shorts.png"]
+    }
+  ]
+}
