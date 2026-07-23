@@ -59,6 +59,7 @@ def test_run_case_saves_image_and_small_metadata(tmp_path: Path) -> None:
         api_key="secret",
         output_root=tmp_path / "outputs",
         generator=generator,
+        clock=iter((10.0, 11.25)).__next__,
     )
 
     assert (result_dir / "image.png").read_bytes() == b"generated"
@@ -66,6 +67,7 @@ def test_run_case_saves_image_and_small_metadata(tmp_path: Path) -> None:
     assert metadata == {
         "case_id": "D01",
         "cost_usd": "0.04",
+        "latency_seconds": 1.25,
         "model": "bytedance-seed/seedream-4.5",
         "prompt": "prompt",
         "references": [str(path) for path in refs],
