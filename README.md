@@ -41,6 +41,12 @@ export OPENROUTER_API_KEY="..."
 uv run weon-eval D01
 ```
 
+Holdout cases are blocked during development. The explicit override is reserved for the frozen final evaluation:
+
+```bash
+uv run weon-eval H01 --allow-holdout
+```
+
 The result is written to:
 
 ```text
@@ -49,7 +55,7 @@ outputs/<case>/<model>/<strategy>/
 └── metadata.json
 ```
 
-Existing output directories are not overwritten. Inspect an existing result before deciding whether another paid request is justified.
+Metadata records the prompt, references, model, baseline strategy, API-reported cost, and measured request latency. Existing output directories are not overwritten. Inspect an existing result before deciding whether another paid request is justified.
 
 ## Validation
 

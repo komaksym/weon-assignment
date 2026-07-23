@@ -7,6 +7,7 @@ import json
 import mimetypes
 from collections.abc import Callable
 from pathlib import Path
+from time import monotonic
 
 from weon_eval.cases import Case
 from weon_eval.openrouter import GenerationResult, generate_image
@@ -46,6 +47,7 @@ def run_case(
     api_key: str,
     output_root: Path,
     generator: Generator = generate_image,
+    clock: Callable[[], float] = monotonic,
 ) -> Path:
     """Generate one image and save it with compact metadata."""
 
@@ -53,12 +55,15 @@ def run_case(
     if result_dir.exists():
         raise FileExistsError(f"output already exists: {result_dir}")
 
+    started_at = clock()
     result = generator(build_payload(case, prompt, model), api_key)
+    latency_seconds = clock() - started_at
     result_dir.mkdir(parents=True)
     (result_dir / "image.png").write_bytes(result.image)
     metadata = {
         "case_id": case.id,
         "cost_usd": str(result.cost_usd) if result.cost_usd is not None else None,
+        "latency_seconds": latency_seconds,
         "model": model,
         "prompt": prompt,
         "references": [str(path) for path in case.reference_paths],

@@ -18,10 +18,10 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run one garment-consistency experiment case")
     parser.add_argument("case_id")
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--strategy", default="baseline")
     parser.add_argument("--cases", type=Path, default=Path("cases.json"))
     parser.add_argument("--prompt", type=Path, default=Path("prompts/baseline.txt"))
     parser.add_argument("--output-root", type=Path, default=Path("outputs"))
+    parser.add_argument("--allow-holdout", action="store_true")
     return parser
 
 
@@ -29,20 +29,25 @@ def main() -> int:
     """Run the CLI and return a process exit code."""
 
     args = _parser().parse_args()
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        print("OPENROUTER_API_KEY is not set")
-        return 2
 
     try:
         cases = load_cases(args.cases)
         case = cases[args.case_id]
+        if case.split == "holdout" and not args.allow_holdout:
+            print(f"holdout case {case.id} requires --allow-holdout")
+            return 2
+
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            print("OPENROUTER_API_KEY is not set")
+            return 2
+
         prompt = render_prompt(case, args.prompt)
         result_dir = run_case(
             case=case,
             prompt=prompt,
             model=args.model,
-            strategy=args.strategy,
+            strategy="baseline",
             api_key=api_key,
             output_root=args.output_root,
         )
