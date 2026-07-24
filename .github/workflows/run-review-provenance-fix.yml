@@ -1,0 +1,42 @@
+name: Run review provenance correction once
+
+on:
+  push:
+    branches:
+      - fix/clarify-ai-visual-assessment
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/clarify-ai-visual-assessment
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Apply factual correction
+        run: python scripts/apply_review_provenance_fix.py
+      - name: Validate
+        run: |
+          set -euo pipefail
+          uv sync --dev
+          uv run ruff check .
+          uv run mypy src
+          uv run pytest
+          uv build
+      - name: Commit correction and remove one-use machinery
+        run: |
+          set -euo pipefail
+          rm scripts/apply_review_provenance_fix.py
+          rm .github/workflows/apply-review-provenance-fix.yml
+          rm .github/workflows/run-review-provenance-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix: clarify visual-assessment provenance" -m "Replace inaccurate human/manual-review claims with explicit ChatGPT visual-assessment provenance, add reviewer-neutral output schemas, rename committed evidence files, document the absence of independent human evaluation, and update focused tests."
+          git push origin HEAD:fix/clarify-ai-visual-assessment
