@@ -34,7 +34,7 @@ from weon_eval.vlm import request_json
 
 DEVELOPMENT_CASE_IDS = ("D01", "D02", "D03")
 DEFAULT_GENERATOR_MODEL = "google/gemini-3.1-flash-lite-image"
-DEFAULT_EVALUATOR_MODEL = "google/gemini-2.5-flash-lite"
+DEFAULT_EVALUATOR_MODEL = "openai/gpt-4.1-mini"
 
 
 def _development_cases(cases_path: Path) -> list[Case]:
