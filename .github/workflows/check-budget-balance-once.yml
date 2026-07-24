@@ -33,7 +33,10 @@ jobs:
               remaining = Decimal(str(data["limit_remaining"]))
           else:
               remaining = Decimal(str(data["limit"])) - Decimal(str(data["usage"]))
-          payload = {"remaining_allowance_usd": str(remaining)}
+          payload = {
+              "snapshot": 3,
+              "remaining_allowance_usd": str(remaining),
+          }
           Path("balance.json").write_text(json.dumps(payload, indent=2) + "\n")
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
               handle.write(f"## OpenRouter key allowance\n- Remaining: `${remaining}`\n")
