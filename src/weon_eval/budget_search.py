@@ -17,6 +17,7 @@ from weon_eval.evaluation import JsonRequester
 from weon_eval.frozen_scoring import DEFAULT_EVALUATOR_MODEL, score_candidate
 from weon_eval.openrouter import GenerationError, GenerationResult, generate_image
 from weon_eval.prompts import ATTRIBUTE_DIMENSIONS, render_prompt
+from weon_eval.reporting import float_value
 from weon_eval.search_methods import (
     REPAIR_PROMPT,
     SEARCH_METHODS,
@@ -48,8 +49,26 @@ class GenerationEvidence:
     balance_after_usd: Decimal
 
 
+@dataclass
+class PaidRequestCounter:
+    """Count every attempted paid network call, including failures."""
+
+    count: int = 0
+
+    def consume(self, maximum: int) -> None:
+        """Reserve one paid-call slot before the network request starts."""
+
+        if self.count >= maximum:
+            raise RequestCapReached("paid request cap reached")
+        self.count += 1
+
+
+class RequestCapReached(RuntimeError):
+    """Raised when the next paid call would exceed the request cap."""
+
+
 class FloorReached(RuntimeError):
-    """Raised internally when the next paid request cannot preserve the floor."""
+    """Raised when the next paid call cannot preserve the allowance floor."""
 
 
 def _development_cases(cases_path: Path) -> tuple[Case, ...]:
@@ -96,6 +115,8 @@ def _generate(
     api_key: str,
     generator: Generator,
     allowance_getter: AllowanceGetter,
+    request_counter: PaidRequestCounter,
+    max_paid_requests: int,
     clock: Clock,
 ) -> GenerationEvidence:
     before = allowance_getter(api_key)
@@ -106,6 +127,7 @@ def _generate(
         prompt=prompt,
         reference_paths=reference_paths,
     )
+    request_counter.consume(max_paid_requests)
     started_at = clock()
     result = generator(payload, api_key)
     latency = clock() - started_at
@@ -155,8 +177,10 @@ def _run_method_case(
     generator: Generator,
     requester: JsonRequester,
     allowance_getter: AllowanceGetter,
+    request_counter: PaidRequestCounter,
+    max_paid_requests: int,
     clock: Clock,
-) -> tuple[dict[str, object], int]:
+) -> dict[str, object]:
     case_root = output_root / f"replicate-{replicate:03d}" / method.name / case.id
     work_dir = case_root / "work"
     reference_paths = method_reference_paths(case, method, work_dir)
@@ -173,11 +197,12 @@ def _run_method_case(
         api_key=api_key,
         generator=generator,
         allowance_getter=allowance_getter,
+        request_counter=request_counter,
+        max_paid_requests=max_paid_requests,
         clock=clock,
     )
     generations.append(first)
     final_image = first.image_path
-    paid_requests = 1
 
     if method.passes == 2:
         second = _generate(
@@ -190,16 +215,18 @@ def _run_method_case(
             api_key=api_key,
             generator=generator,
             allowance_getter=allowance_getter,
+            request_counter=request_counter,
+            max_paid_requests=max_paid_requests,
             clock=clock,
         )
         generations.append(second)
         final_image = second.image_path
-        paid_requests += 1
 
     evaluation_before = allowance_getter(api_key)
     if not can_spend(evaluation_before, EVALUATION_RESERVE_USD, floor_usd):
         raise FloorReached("evaluation reserve would cross the allowance floor")
     raw_evaluation = case_root / "evaluation.json"
+    request_counter.consume(max_paid_requests)
     score = score_candidate(
         case_id=case.id,
         garment_paths=case.garments,
@@ -209,7 +236,6 @@ def _run_method_case(
         evaluator_model=DEFAULT_EVALUATOR_MODEL,
         requester=requester,
     )
-    paid_requests += 1
     evaluation_after = allowance_getter(api_key)
     if evaluation_after.remaining_usd < floor_usd:
         raise BudgetError("evaluation crossed the configured allowance floor")
@@ -236,7 +262,7 @@ def _run_method_case(
         "auto_summary": score.summary,
     }
     row.update(score.scores)
-    return row, paid_requests
+    return row
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -252,21 +278,31 @@ def _method_summaries(rows: Sequence[dict[str, object]]) -> list[dict[str, objec
     for method, method_rows in grouped.items():
         dimension_means: dict[str, float] = {}
         for dimension in ATTRIBUTE_DIMENSIONS:
-            values = [float(row[dimension]) for row in method_rows if float(row[dimension]) >= 0]
+            values = [
+                float_value(row[dimension])
+                for row in method_rows
+                if float_value(row[dimension]) >= 0
+            ]
             dimension_means[dimension] = _mean(values) if values else -1.0
-        total_cost = sum((Decimal(str(row["total_cost_usd"])) for row in method_rows), Decimal("0"))
-        total_latency = sum(float(row["total_latency_seconds"]) for row in method_rows)
+        detail_values = [
+            dimension_means[dimension]
+            for dimension in ("print_logo", "construction_details", "texture_material")
+            if dimension_means[dimension] >= 0
+        ]
+        total_cost = sum(
+            (Decimal(str(row["total_cost_usd"])) for row in method_rows),
+            Decimal("0"),
+        )
+        total_latency = sum(
+            float_value(row["total_latency_seconds"]) for row in method_rows
+        )
         summary: dict[str, object] = {
             "method": method,
             "valid_samples": len(method_rows),
-            "mean_auto_score": _mean([float(row["mean_auto_score"]) for row in method_rows]),
-            "identity_detail_mean": _mean(
-                [
-                    dimension_means["print_logo"],
-                    dimension_means["construction_details"],
-                    dimension_means["texture_material"],
-                ]
+            "mean_auto_score": _mean(
+                [float_value(row["mean_auto_score"]) for row in method_rows]
             ),
+            "identity_detail_mean": _mean(detail_values),
             "total_cost_usd": str(total_cost),
             "average_cost_usd": str(total_cost / len(method_rows)),
             "average_latency_seconds": total_latency / len(method_rows),
@@ -275,10 +311,10 @@ def _method_summaries(rows: Sequence[dict[str, object]]) -> list[dict[str, objec
         summaries.append(summary)
     summaries.sort(
         key=lambda row: (
-            -float(row["mean_auto_score"]),
-            -float(row["identity_detail_mean"]),
+            -float_value(row["mean_auto_score"]),
+            -float_value(row["identity_detail_mean"]),
             Decimal(str(row["average_cost_usd"])),
-            float(row["average_latency_seconds"]),
+            float_value(row["average_latency_seconds"]),
             str(row["method"]),
         )
     )
@@ -299,6 +335,27 @@ def _review_rows(rows: Sequence[dict[str, object]]) -> list[dict[str, object]]:
         }
         for row in rows
     ]
+
+
+def _failure_row(
+    *,
+    method: SearchMethod,
+    case: Case,
+    replicate: int,
+    error: Exception,
+    allowance_getter: AllowanceGetter,
+    api_key: str,
+    paid_requests: int,
+) -> dict[str, object]:
+    return {
+        "method": method.name,
+        "case_id": case.id,
+        "replicate": replicate,
+        "error_type": type(error).__name__,
+        "error": str(error),
+        "remaining_usd": str(allowance_getter(api_key).remaining_usd),
+        "paid_requests_so_far": paid_requests,
+    }
 
 
 def run_budget_search(
@@ -329,16 +386,21 @@ def run_budget_search(
     rows: list[dict[str, object]] = []
     failures: list[dict[str, object]] = []
     skips: list[dict[str, object]] = []
-    paid_requests = 0
+    disabled_methods: set[str] = set()
+    request_counter = PaidRequestCounter()
     replicate = 1
     stop_reason = "request_cap"
 
-    while paid_requests < max_paid_requests:
+    while request_counter.count < max_paid_requests:
         successful_this_round = 0
-        attempted_this_round = 0
+        eligible_this_round = 0
+        request_cap_hit = False
         for method in methods:
+            if method.name in disabled_methods:
+                continue
             current = allowance_getter(api_key)
-            if current.remaining_usd <= floor_usd + NEAR_FLOOR_WINDOW_USD and method.name != "lite_direct":
+            near_floor = current.remaining_usd <= floor_usd + NEAR_FLOOR_WINDOW_USD
+            if near_floor and method.name != "lite_direct":
                 skips.append(
                     {
                         "method": method.name,
@@ -349,9 +411,12 @@ def run_budget_search(
                 )
                 continue
             required_requests = method.passes + 1
-            combined_reserve = method.generation_reserve_usd * method.passes + EVALUATION_RESERVE_USD
-            if paid_requests + required_requests > max_paid_requests:
-                stop_reason = "request_cap"
+            combined_reserve = (
+                method.generation_reserve_usd * method.passes
+                + EVALUATION_RESERVE_USD
+            )
+            if request_counter.count + required_requests > max_paid_requests:
+                request_cap_hit = True
                 break
             if not can_spend(current, combined_reserve, floor_usd):
                 skips.append(
@@ -367,8 +432,8 @@ def run_budget_search(
 
             for case in cases:
                 current = allowance_getter(api_key)
-                if paid_requests + required_requests > max_paid_requests:
-                    stop_reason = "request_cap"
+                if request_counter.count + required_requests > max_paid_requests:
+                    request_cap_hit = True
                     break
                 if not can_spend(current, combined_reserve, floor_usd):
                     skips.append(
@@ -382,9 +447,9 @@ def run_budget_search(
                         }
                     )
                     continue
-                attempted_this_round += 1
+                eligible_this_round += 1
                 try:
-                    row, request_count = _run_method_case(
+                    row = _run_method_case(
                         method=method,
                         case=case,
                         replicate=replicate,
@@ -395,32 +460,56 @@ def run_budget_search(
                         generator=generator,
                         requester=requester,
                         allowance_getter=allowance_getter,
+                        request_counter=request_counter,
+                        max_paid_requests=max_paid_requests,
                         clock=clock,
                     )
+                except RequestCapReached:
+                    request_cap_hit = True
+                    break
                 except FloorReached:
                     stop_reason = "floor_guard"
                     continue
-                except (GenerationError, VlmError, ValueError, BudgetError) as exc:
+                except GenerationError as exc:
                     failures.append(
-                        {
-                            "method": method.name,
-                            "case_id": case.id,
-                            "replicate": replicate,
-                            "error_type": type(exc).__name__,
-                            "error": str(exc),
-                            "remaining_usd": str(allowance_getter(api_key).remaining_usd),
-                        }
+                        _failure_row(
+                            method=method,
+                            case=case,
+                            replicate=replicate,
+                            error=exc,
+                            allowance_getter=allowance_getter,
+                            api_key=api_key,
+                            paid_requests=request_counter.count,
+                        )
+                    )
+                    disabled_methods.add(method.name)
+                    break
+                except (VlmError, ValueError, BudgetError) as exc:
+                    failures.append(
+                        _failure_row(
+                            method=method,
+                            case=case,
+                            replicate=replicate,
+                            error=exc,
+                            allowance_getter=allowance_getter,
+                            api_key=api_key,
+                            paid_requests=request_counter.count,
+                        )
                     )
                     continue
-                paid_requests += request_count
                 rows.append(row)
                 successful_this_round += 1
 
-            if stop_reason == "request_cap" and paid_requests >= max_paid_requests:
+            if request_cap_hit:
                 break
 
+        if request_cap_hit:
+            stop_reason = "request_cap"
+            break
         if successful_this_round == 0:
-            stop_reason = "floor_guard" if attempted_this_round == 0 else "no_successful_candidates"
+            stop_reason = (
+                "floor_guard" if eligible_this_round == 0 else "no_successful_candidates"
+            )
             break
         replicate += 1
 
@@ -439,9 +528,10 @@ def run_budget_search(
                 "ending_allowance_usd": str(ending.remaining_usd),
                 "floor_usd": str(floor_usd),
                 "spent_usd": str(starting.remaining_usd - ending.remaining_usd),
-                "paid_requests": paid_requests,
+                "paid_requests": request_counter.count,
                 "successful_candidates": len(rows),
                 "failure_count": len(failures),
+                "disabled_methods": sorted(disabled_methods),
                 "skip_count": len(skips),
                 "replicates_started": replicate,
                 "stop_reason": stop_reason,
