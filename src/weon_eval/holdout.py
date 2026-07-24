@@ -20,6 +20,19 @@ HOLDOUT_CASE_IDS = ("H01", "H02")
 DEFAULT_GENERATOR_MODEL = "google/gemini-3.1-flash-lite-image"
 DEFAULT_EVALUATOR_MODEL = "openai/gpt-4.1-mini"
 
+# The frozen source rubric treats every dimension as applicable for both products.
+# In particular, shoe silhouette is directly comparable and must not be scored N/A.
+HOLDOUT_APPLICABLE_DIMENSIONS = {
+    case_id: frozenset(ATTRIBUTE_DIMENSIONS) for case_id in HOLDOUT_CASE_IDS
+}
+
+# Normalized (left, top, right, bottom) boxes on the generated 3:4 image.
+# These are presentation-only crops: they do not affect generation or scoring.
+HOLDOUT_DETAIL_CROPS = {
+    "H01": (0.23, 0.77, 0.78, 0.99),
+    "H02": (0.29, 0.39, 0.71, 0.69),
+}
+
 
 def _holdout_cases(cases_path: Path) -> list[Case]:
     cases = load_cases(cases_path)
@@ -69,6 +82,22 @@ def _evaluation_prompt() -> str:
     )
 
 
+def validate_holdout_applicability(case_id: str, scores: Mapping[str, float]) -> None:
+    """Reject source-invalid N/A values before calculating any mean."""
+
+    try:
+        applicable = HOLDOUT_APPLICABLE_DIMENSIONS[case_id]
+    except KeyError as exc:
+        raise ValueError(f"no frozen applicability mask for {case_id}") from exc
+    expected_na = set(ATTRIBUTE_DIMENSIONS) - set(applicable)
+    actual_na = {dimension for dimension, score in scores.items() if score < 0}
+    if actual_na != expected_na:
+        raise ValueError(
+            f"{case_id}: evaluator returned invalid N/A applicability; "
+            f"expected {sorted(expected_na)}, got {sorted(actual_na)}"
+        )
+
+
 def _panel(path: Path, size: tuple[int, int]) -> Image.Image:
     with Image.open(path) as source:
         image = ImageOps.exif_transpose(source).convert("RGB")
@@ -79,22 +108,81 @@ def _panel(path: Path, size: tuple[int, int]) -> Image.Image:
     return panel
 
 
-def _write_contact_sheet(*, garment: Path, result: Path, output: Path) -> None:
+def _pixel_crop_box(
+    image_size: tuple[int, int], normalized_box: tuple[float, float, float, float]
+) -> tuple[int, int, int, int]:
+    width, height = image_size
+    left, top, right, bottom = normalized_box
+    if not (0 <= left < right <= 1 and 0 <= top < bottom <= 1):
+        raise ValueError(f"invalid normalized crop box: {normalized_box}")
+    return (
+        round(left * width),
+        round(top * height),
+        round(right * width),
+        round(bottom * height),
+    )
+
+
+def _detail_panel(
+    path: Path,
+    *,
+    normalized_box: tuple[float, float, float, float],
+    size: tuple[int, int],
+) -> tuple[Image.Image, dict[str, object]]:
+    with Image.open(path) as source:
+        image = ImageOps.exif_transpose(source).convert("RGB")
+    pixel_box = _pixel_crop_box(image.size, normalized_box)
+    crop = image.crop(pixel_box)
+    contained = ImageOps.contain(crop, size, Image.Resampling.LANCZOS)
+    panel = Image.new("RGB", size, "white")
+    offset = ((size[0] - contained.width) // 2, (size[1] - contained.height) // 2)
+    panel.paste(contained, offset)
+    return panel, {
+        "method": "frozen case-specific normalized garment-region crop",
+        "source_dimensions": list(image.size),
+        "normalized_box": list(normalized_box),
+        "pixel_box": list(pixel_box),
+    }
+
+
+def _write_contact_sheet(
+    *,
+    case_id: str,
+    garment: Path,
+    result: Path,
+    output: Path,
+) -> None:
     panel_size = (420, 540)
     label_height = 42
-    items = (("garment packshot", garment), ("frozen baseline result", result))
+    try:
+        normalized_box = HOLDOUT_DETAIL_CROPS[case_id]
+    except KeyError as exc:
+        raise ValueError(f"no frozen detail crop for {case_id}") from exc
+    detail, crop_metadata = _detail_panel(
+        result,
+        normalized_box=normalized_box,
+        size=panel_size,
+    )
+    items = (
+        ("garment packshot", _panel(garment, panel_size)),
+        ("frozen baseline result", _panel(result, panel_size)),
+        ("result garment detail", detail),
+    )
     sheet = Image.new(
         "RGB",
         (panel_size[0] * len(items), panel_size[1] + label_height),
         "white",
     )
     draw = ImageDraw.Draw(sheet)
-    for index, (label, path) in enumerate(items):
+    for index, (label, panel) in enumerate(items):
         x = index * panel_size[0]
-        sheet.paste(_panel(path, panel_size), (x, 0))
+        sheet.paste(panel, (x, 0))
         draw.text((x + 10, panel_size[1] + 12), label, fill="black")
     output.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(output, format="JPEG", quality=88, optimize=True)
+    (output.parent / "contact_sheet.json").write_text(
+        json.dumps(crop_metadata, indent=2) + "\n"
+    )
 
 
 def _result_row(
@@ -183,17 +271,6 @@ def run_holdouts(
             schema=_candidate_schema(),
             api_key=api_key,
         )
-        scores = parse_scores(evaluation.data, "candidate_1")
-        run_metadata = metadata(result_dir)
-        row = _result_row(
-            case_id=case.id,
-            scores=scores,
-            run_metadata=run_metadata,
-            evaluation_cost=evaluation.cost_usd,
-            evaluation_latency=evaluation.latency_seconds,
-            summary=summary_text(evaluation.data, "candidate_1"),
-        )
-        rows.append(row)
 
         case_root = output_root / case.id
         (case_root / "evaluation.json").write_text(
@@ -211,7 +288,22 @@ def run_holdouts(
             )
             + "\n"
         )
+
+        scores = parse_scores(evaluation.data, "candidate_1")
+        validate_holdout_applicability(case.id, scores)
+        run_metadata = metadata(result_dir)
+        row = _result_row(
+            case_id=case.id,
+            scores=scores,
+            run_metadata=run_metadata,
+            evaluation_cost=evaluation.cost_usd,
+            evaluation_latency=evaluation.latency_seconds,
+            summary=summary_text(evaluation.data, "candidate_1"),
+        )
+        rows.append(row)
+
         _write_contact_sheet(
+            case_id=case.id,
             garment=case.garments[0],
             result=generated_image,
             output=case_root / "contact_sheet.jpg",
