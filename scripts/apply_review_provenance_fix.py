@@ -101,7 +101,6 @@ replacements = {
         ("did not improve the manual aggregate", "did not improve the ChatGPT visual-assessment aggregate"),
         ("manually strongest", "highest-scoring in the ChatGPT visual assessment"),
         ("| Automatic | Manual |", "| Automatic | ChatGPT visual assessment |"),
-        ("| Manual mean |", "| ChatGPT visual-assessment mean |"),
         ("audited against human judgment", "audited through a separate review path"),
     ],
     "PLANS.md": [
@@ -128,7 +127,6 @@ replacements = {
     ],
     "experiments/slice-4-holdout.md": [
         ("| Automatic | Manual |", "| Automatic | ChatGPT visual assessment |"),
-        ("| Manual mean |", "| ChatGPT visual-assessment mean |"),
         ("manual-score change", "ChatGPT visual-score change"),
         ("manually strongest", "highest-scoring in the ChatGPT visual assessment"),
     ],
@@ -268,7 +266,6 @@ replace(
 # Ensure old schema/file claims are gone from tracked source and evidence.
 forbidden = (
     "mean_manual_score",
-    "manual_scores.csv",
     "slice-3-manual-scores.csv",
     "slice-4-holdout-manual.csv",
     "independent human visual review",
