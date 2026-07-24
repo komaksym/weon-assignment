@@ -24,21 +24,137 @@ class SearchMethod:
     generation_reserve_usd: Decimal
 
 
+def _method(
+    name: str,
+    model: str,
+    prompt_kind: str,
+    reference_mode: str,
+    passes: int,
+    reserve: str,
+) -> SearchMethod:
+    return SearchMethod(
+        name=name,
+        model=model,
+        prompt_kind=prompt_kind,
+        reference_mode=reference_mode,
+        passes=passes,
+        generation_reserve_usd=Decimal(reserve),
+    )
+
+
 SEARCH_METHODS = (
-    SearchMethod("lite_direct", "google/gemini-3.1-flash-lite-image", "baseline", "direct", 1, Decimal("0.06")),
-    SearchMethod("lite_identity_prompt", "google/gemini-3.1-flash-lite-image", "identity", "direct", 1, Decimal("0.06")),
-    SearchMethod("lite_detail_board", "google/gemini-3.1-flash-lite-image", "baseline", "detail_board", 1, Decimal("0.06")),
-    SearchMethod("lite_two_pass_repair", "google/gemini-3.1-flash-lite-image", "baseline", "direct", 2, Decimal("0.06")),
-    SearchMethod("nano25_direct", "google/gemini-2.5-flash-image", "baseline", "direct", 1, Decimal("0.10")),
-    SearchMethod("nano31_direct", "google/gemini-3.1-flash-image", "baseline", "direct", 1, Decimal("0.18")),
-    SearchMethod("nano31_detail_board", "google/gemini-3.1-flash-image", "baseline", "detail_board", 1, Decimal("0.18")),
-    SearchMethod("seedream_direct", "bytedance-seed/seedream-4.5", "baseline", "direct", 1, Decimal("0.06")),
-    SearchMethod("seedream_detail_board", "bytedance-seed/seedream-4.5", "baseline", "detail_board", 1, Decimal("0.06")),
-    SearchMethod("gpt_image_1_mini_direct", "openai/gpt-image-1-mini", "baseline", "direct", 1, Decimal("0.30")),
-    SearchMethod("gpt_image_1_mini_detail_board", "openai/gpt-image-1-mini", "baseline", "detail_board", 1, Decimal("0.30")),
-    SearchMethod("gpt_image_2_direct", "openai/gpt-image-2", "baseline", "direct", 1, Decimal("0.80")),
-    SearchMethod("gpt_image_2_detail_board", "openai/gpt-image-2", "baseline", "detail_board", 1, Decimal("0.80")),
-    SearchMethod("nano31_two_pass_repair", "google/gemini-3.1-flash-image", "baseline", "direct", 2, Decimal("0.18")),
+    _method(
+        "lite_direct",
+        "google/gemini-3.1-flash-lite-image",
+        "baseline",
+        "direct",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_identity_prompt",
+        "google/gemini-3.1-flash-lite-image",
+        "identity",
+        "direct",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_detail_board",
+        "google/gemini-3.1-flash-lite-image",
+        "baseline",
+        "detail_board",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_two_pass_repair",
+        "google/gemini-3.1-flash-lite-image",
+        "baseline",
+        "direct",
+        2,
+        "0.06",
+    ),
+    _method(
+        "nano25_direct",
+        "google/gemini-2.5-flash-image",
+        "baseline",
+        "direct",
+        1,
+        "0.10",
+    ),
+    _method(
+        "nano31_direct",
+        "google/gemini-3.1-flash-image",
+        "baseline",
+        "direct",
+        1,
+        "0.18",
+    ),
+    _method(
+        "nano31_detail_board",
+        "google/gemini-3.1-flash-image",
+        "baseline",
+        "detail_board",
+        1,
+        "0.18",
+    ),
+    _method(
+        "seedream_direct",
+        "bytedance-seed/seedream-4.5",
+        "baseline",
+        "direct",
+        1,
+        "0.06",
+    ),
+    _method(
+        "seedream_detail_board",
+        "bytedance-seed/seedream-4.5",
+        "baseline",
+        "detail_board",
+        1,
+        "0.06",
+    ),
+    _method(
+        "gpt_image_1_mini_direct",
+        "openai/gpt-image-1-mini",
+        "baseline",
+        "direct",
+        1,
+        "0.30",
+    ),
+    _method(
+        "gpt_image_1_mini_detail_board",
+        "openai/gpt-image-1-mini",
+        "baseline",
+        "detail_board",
+        1,
+        "0.30",
+    ),
+    _method(
+        "gpt_image_2_direct",
+        "openai/gpt-image-2",
+        "baseline",
+        "direct",
+        1,
+        "0.80",
+    ),
+    _method(
+        "gpt_image_2_detail_board",
+        "openai/gpt-image-2",
+        "baseline",
+        "detail_board",
+        1,
+        "0.80",
+    ),
+    _method(
+        "nano31_two_pass_repair",
+        "google/gemini-3.1-flash-image",
+        "baseline",
+        "direct",
+        2,
+        "0.18",
+    ),
 )
 
 IDENTITY_PRIORITY_SUFFIX = """
@@ -85,7 +201,8 @@ def _crop(image: Image.Image, top: float, bottom: float) -> Image.Image:
 def _panel(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     contained = ImageOps.contain(image, size, Image.Resampling.LANCZOS)
     panel = Image.new("RGB", size, "white")
-    panel.paste(contained, ((size[0] - contained.width) // 2, (size[1] - contained.height) // 2))
+    offset = ((size[0] - contained.width) // 2, (size[1] - contained.height) // 2)
+    panel.paste(contained, offset)
     return panel
 
 
@@ -113,7 +230,11 @@ def create_detail_board(garment_path: Path, output_path: Path) -> Path:
     return output_path
 
 
-def method_reference_paths(case: Case, method: SearchMethod, work_dir: Path) -> tuple[Path, ...]:
+def method_reference_paths(
+    case: Case,
+    method: SearchMethod,
+    work_dir: Path,
+) -> tuple[Path, ...]:
     """Return person/environment/garment references for one predeclared method."""
 
     if method.reference_mode == "direct":
