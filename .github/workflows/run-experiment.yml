@@ -15,7 +15,7 @@ on:
         description: OpenRouter image model slug
         required: true
         type: string
-        default: bytedance-seed/seedream-4.5
+        default: google/gemini-3.1-flash-lite-image
       confirm_paid_run:
         description: Confirm that this workflow may spend API credit
         required: true
