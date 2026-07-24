@@ -1,0 +1,27 @@
+name: Capture development log
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  capture:
+    if: ${{ github.head_ref == 'execute/slice-3-development-matrix' }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download sanitized log tail
+        run: |
+          set -euo pipefail
+          gh api repos/${{ github.repository }}/actions/jobs/89505692036/logs > full.log
+          tail -n 120 full.log > development-log-tail.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: development-log-tail-${{ github.run_id }}
+          path: development-log-tail.txt
+          retention-days: 1
