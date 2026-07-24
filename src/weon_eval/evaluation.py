@@ -114,6 +114,26 @@ def parse_scores(data: Mapping[str, object], candidate: str) -> dict[str, float]
     return scores
 
 
+def validate_applicability_masks(*candidate_scores: Mapping[str, float]) -> None:
+    """Require source-level N/A dimensions to be identical for every candidate."""
+
+    if not candidate_scores:
+        raise ValueError("no candidate scores provided")
+    expected = {
+        dimension
+        for dimension in ATTRIBUTE_DIMENSIONS
+        if candidate_scores[0][dimension] < 0
+    }
+    for scores in candidate_scores[1:]:
+        actual = {
+            dimension
+            for dimension in ATTRIBUTE_DIMENSIONS
+            if scores[dimension] < 0
+        }
+        if actual != expected:
+            raise ValueError("evaluator returned inconsistent N/A applicability")
+
+
 def mean_score(scores: Mapping[str, float]) -> float:
     """Average applicable 0/0.5/1 scores, ignoring -1 (N/A)."""
 

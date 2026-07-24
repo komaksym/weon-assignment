@@ -39,9 +39,9 @@ flowchart LR
 
 **Execution:** 9 image generations, 3 attribute-extraction VLM requests, 3 comparison VLM requests, 0 holdout requests, and 0 automatic retries.
 
-**Result:** Automatic means were baseline `0.7222`, structured `0.7500`, and best-of-two `0.7500`. Manual means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Best-of-two more than doubled method cost, greatly increased latency, and disagreed with human preference on D03.
+**Result:** Non-blinded exploratory automatic means were baseline `0.7222`, structured `0.7500`, and best-of-two `0.7500`; these are not used as independent strategy evidence because treatment labels were visible to the evaluator. Manual means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Corrected average end-to-end method cost/latency was baseline `$0.034466 / 5.48 s`, structured `$0.035331 / 8.16 s`, and best-of-two `$0.072641 / 54.19 s`. Best-of-two also disagreed with human preference on D03.
 
-**Recorded decision:** Freeze `baseline` for slice 4 using `google/gemini-3.1-flash-lite-image`, `prompts/baseline.txt`, one `1K`/`3:4` candidate, existing compact preprocessing, and no resampling. Use `openai/gpt-4.1-mini` only for rough scoring and retain the manual rubric as the final check.
+**Recorded decision:** Freeze `baseline` for slice 4 using `google/gemini-3.1-flash-lite-image`, `prompts/baseline.txt`, one `1K`/`3:4` candidate, existing compact preprocessing, and no resampling. Use `openai/gpt-4.1-mini` only for rough scoring and retain the manual rubric as the final check. Future comparative runs must reject inconsistent candidate-specific N/A masks.
 
 ## Slice 4 — frozen holdouts and submission
 
