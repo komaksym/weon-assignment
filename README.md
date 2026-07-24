@@ -8,10 +8,11 @@ The repository intentionally prioritizes generated evidence and evaluation over 
 
 ```mermaid
 flowchart LR
-    A[cases.json + local images] --> B[Prompt]
-    B --> C[OpenRouter Images API]
-    C --> D[image.png + metadata.json]
-    D --> E[Evaluation and report]
+    A[cases.json + asset sources] --> B[Prepare selected inputs]
+    B --> C[Prompt]
+    C --> D[OpenRouter Images API]
+    D --> E[image.png + metadata.json]
+    E --> F[Evaluation and report]
 ```
 
 ## Setup
@@ -23,25 +24,54 @@ uv sync --dev
 cp .env.example .env
 ```
 
-Place the supplied images under:
+The ignored local input layout is:
 
 ```text
 inputs/
-├── environments/{street,meadow,forest}.png
-├── garments/{shorts,sneakers,coat}.png
-└── models/{black-bodysuit-woman,white-tee-man,cream-sweater-woman}.png
+├── environments/
+│   ├── street.png
+│   ├── meadow.png
+│   └── forest.png
+├── garments/
+│   ├── shorts.png
+│   ├── sneakers.jpg
+│   └── coat.png
+└── models/
+    ├── black-bodysuit-woman.png
+    ├── white-tee-man.png
+    └── cream-sweater-woman.png
 ```
 
-Set `OPENROUTER_API_KEY` in your shell or load it from `.env` before running the command. The CLI does not read or print the key.
+The filename extensions follow the actual downloaded bytes rather than the source URL suffixes.
 
-## Run one baseline
+Prepare only the selected development case from the assignment-provided source manifest:
+
+```bash
+uv run weon-prepare-inputs D01
+```
+
+Set `OPENROUTER_API_KEY` in your shell or load it from `.env` before running the generation command. The CLI does not read or print the key.
+
+## Run one baseline locally
 
 ```bash
 export OPENROUTER_API_KEY="..."
 uv run weon-eval D01
 ```
 
-Holdout cases are blocked during development. The explicit override is reserved for the frozen final evaluation:
+## Run one paid experiment in GitHub Actions
+
+The permanent **Run paid experiment** workflow is manual and separate from normal CI:
+
+1. Open **Actions → Run paid experiment → Run workflow**.
+2. Choose `D01`, `D02`, or `D03`.
+3. Enter the OpenRouter model slug.
+4. Enable **Confirm that this workflow may spend API credit**.
+5. Start the workflow and download the `experiment-<case>-<run-id>` artifact.
+
+Each invocation validates the repository, prepares only the selected case, performs one generation command without retries, and uploads the case output for 14 days. Ordinary pushes and pull requests never trigger this paid workflow.
+
+Holdout cases are blocked during development. The explicit local override is reserved for the frozen final evaluation:
 
 ```bash
 uv run weon-eval H01 --allow-holdout
