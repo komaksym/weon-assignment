@@ -1,0 +1,87 @@
+name: Run frozen holdouts
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_paid_run:
+        description: Confirm two image requests and two evaluator requests
+        required: true
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      confirm_paid_run:
+        required: true
+        type: boolean
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paid-frozen-holdouts
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: ${{ inputs.confirm_paid_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Guard paid run
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+            echo "OPENROUTER_API_KEY is not configured" >&2
+            exit 2
+          fi
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Prepare frozen holdouts
+        run: |
+          set -euo pipefail
+          uv run weon-prepare-inputs H01
+          uv run weon-prepare-inputs H02
+      - name: Run frozen holdout matrix
+        run: uv run weon-holdout
+      - name: Publish summary
+        if: success()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = json.loads(Path("outputs/holdout/holdout_summary.json").read_text())
+          lines = [
+              "## Frozen holdout evaluation",
+              f"- Cases: `{', '.join(summary['cases'])}`",
+              f"- Strategy: `{summary['strategy']}`",
+              f"- Image requests: `{summary['image_requests']}`",
+              f"- Evaluator requests: `{summary['evaluation_requests']}`",
+              f"- Development requests: `{summary['development_requests']}`",
+              f"- Automatic retries: `{summary['automatic_retries']}`",
+              f"- Mean automatic score: `{summary['mean_auto_score']:.4f}`",
+              f"- Total experiment cost: `${summary['total_experiment_cost_usd']}`",
+          ]
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frozen-holdouts-${{ github.run_id }}
+          path: outputs/holdout/
+          if-no-files-found: warn
+          retention-days: 14
