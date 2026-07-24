@@ -1,14 +1,22 @@
 import base64
 from decimal import Decimal
+from io import BytesIO
 
 import httpx
 import pytest
+from PIL import Image
 
 from weon_eval.openrouter import GenerationError, generate_image
 
 
-def test_generate_image_returns_bytes_and_reported_cost() -> None:
-    image = b"fake-png"
+def _image_bytes(image_format: str) -> bytes:
+    output = BytesIO()
+    Image.new("RGB", (4, 4), "red").save(output, format=image_format)
+    return output.getvalue()
+
+
+def test_generate_image_returns_bytes_media_type_and_reported_cost() -> None:
+    image = _image_bytes("JPEG")
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url == "https://openrouter.ai/api/v1/images"
@@ -16,8 +24,13 @@ def test_generate_image_returns_bytes_and_reported_cost() -> None:
         return httpx.Response(
             200,
             json={
-                "data": [{"b64_json": base64.b64encode(image).decode()}],
-                "usage": {"cost": 0.04},
+                "data": [
+                    {
+                        "b64_json": base64.b64encode(image).decode(),
+                        "media_type": "image/jpeg",
+                    }
+                ],
+                "usage": {"cost": 0.03487875},
             },
         )
 
@@ -28,7 +41,72 @@ def test_generate_image_returns_bytes_and_reported_cost() -> None:
     )
 
     assert result.image == image
-    assert result.cost_usd == Decimal("0.04")
+    assert result.media_type == "image/jpeg"
+    assert result.cost_usd == Decimal("0.03487875")
+
+
+def test_generate_image_infers_media_type_when_response_omits_it() -> None:
+    image = _image_bytes("PNG")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"data": [{"b64_json": base64.b64encode(image).decode()}]},
+        )
+
+    result = generate_image(
+        payload={"model": "model", "prompt": "prompt"},
+        api_key="secret",
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert result.media_type == "image/png"
+
+
+def test_generate_image_rejects_malformed_declared_image() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "b64_json": base64.b64encode(b"not-an-image").decode(),
+                        "media_type": "image/jpeg",
+                    }
+                ]
+            },
+        )
+
+    with pytest.raises(GenerationError, match="invalid image bytes"):
+        generate_image(
+            payload={"model": "model", "prompt": "prompt"},
+            api_key="secret",
+            transport=httpx.MockTransport(handler),
+        )
+
+
+def test_generate_image_rejects_declared_media_type_mismatch() -> None:
+    image = _image_bytes("PNG")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "b64_json": base64.b64encode(image).decode(),
+                        "media_type": "image/jpeg",
+                    }
+                ]
+            },
+        )
+
+    with pytest.raises(GenerationError, match="media type does not match"):
+        generate_image(
+            payload={"model": "model", "prompt": "prompt"},
+            api_key="secret",
+            transport=httpx.MockTransport(handler),
+        )
 
 
 def test_generate_image_surfaces_safe_api_error() -> None:

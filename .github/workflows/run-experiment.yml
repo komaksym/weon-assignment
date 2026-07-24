@@ -1,0 +1,94 @@
+name: Run paid experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      case_id:
+        description: Development case to run
+        required: true
+        type: choice
+        options:
+          - D01
+          - D02
+          - D03
+      model:
+        description: OpenRouter image model slug
+        required: true
+        type: string
+        default: google/gemini-3.1-flash-lite-image
+      confirm_paid_run:
+        description: Confirm that this workflow may spend API credit
+        required: true
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      case_id:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+      confirm_paid_run:
+        required: true
+        type: boolean
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paid-experiment-${{ inputs.case_id }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: ${{ inputs.confirm_paid_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CASE_ID: ${{ inputs.case_id }}
+      MODEL: ${{ inputs.model }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Guard paid run
+        run: |
+          set -euo pipefail
+          case "$CASE_ID" in
+            D01|D02|D03) ;;
+            *) echo "unsupported development case: $CASE_ID" >&2; exit 2 ;;
+          esac
+          if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+            echo "OPENROUTER_API_KEY is not configured" >&2
+            exit 2
+          fi
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Prepare selected inputs
+        run: uv run weon-prepare-inputs "$CASE_ID"
+      - name: Run one paid generation
+        run: uv run weon-eval "$CASE_ID" --model "$MODEL"
+      - name: Publish run summary
+        run: |
+          set -euo pipefail
+          metadata=$(find "outputs/$CASE_ID" -name metadata.json -print -quit)
+          echo "## Paid experiment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Case: \`$CASE_ID\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Model: \`$MODEL\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Requests: \`1\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Metadata: \`$metadata\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experiment-${{ inputs.case_id }}-${{ github.run_id }}
+          path: outputs/${{ inputs.case_id }}/
+          if-no-files-found: error
+          retention-days: 14
