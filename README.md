@@ -10,12 +10,12 @@ The direct baseline was selected:
 
 - development blinded automatic mean: `0.8889` for every strategy;
 - development manual mean: baseline `0.6833`, structured `0.6500`, best-of-two `0.6500`;
-- holdout automatic mean: `1.0000`;
+- holdout automatic scoring: H01 invalid under the frozen applicability mask; H02 `1.0000`; no two-case automatic mean is reported;
 - holdout manual mean: `0.6667`;
 - holdout generation cost: `$0.06940025` for two images;
 - holdout generation latency: `13.1647 s` total.
 
-Broad color, garment presence, and coarse silhouette were generally preserved. Logos, exact construction, and material details remained unreliable, and the VLM evaluator was substantially overconfident on the holdouts.
+Broad color, garment presence, and coarse silhouette were generally preserved. Logos, exact construction, and material details remained unreliable. The H01 evaluator also attempted to remove shoe silhouette from the denominator, confirming that rough VLM scores require applicability validation and human audit.
 
 ```mermaid
 flowchart LR
@@ -24,7 +24,7 @@ flowchart LR
     C --> D[Blinded VLM + human review]
     D --> E[Freeze direct baseline]
     E --> F[One H01-H02 run]
-    F --> G[Report + final figures]
+    F --> G[Rubric validation + report + detail crops]
 ```
 
 ## Repository guide
@@ -32,7 +32,7 @@ flowchart LR
 - `REPORT.md` — final 1–4 page-equivalent technical report.
 - `experiments/slice-3-development.md` — development evidence and winner decision.
 - `experiments/slice-4-holdout.md` — frozen holdout evidence.
-- `submission/figures/` — compressed before/after and comparison visuals.
+- `submission/figures/` — compressed comparison visuals with durable garment-detail crops and recorded coordinates.
 - `specs/` — fixed slice specifications.
 - `src/weon_eval/` — runnable experiment code.
 
@@ -95,7 +95,9 @@ uv run weon-prepare-inputs H02 --allow-holdout
 uv run weon-holdout
 ```
 
-This command uses the committed baseline configuration and makes exactly two generation requests and two rough evaluator requests. It exposes no strategy-selection option, performs no retries or resampling, and does not access D01-D03.
+This command uses the committed baseline configuration and makes exactly two generation requests and two rough evaluator requests. It exposes no strategy-selection option, performs no retries or resampling, and does not access D01-D03. Raw evaluator JSON is persisted before aggregation, and the frozen source-applicability mask rejects invalid `-1` values rather than silently changing a score denominator.
+
+Each holdout contact sheet contains the packshot, full generated result, and a deterministic garment-region detail crop. The normalized and pixel crop coordinates are stored in `submission/figures/crop-metadata.json`; these crops affect presentation only, not generation or scoring.
 
 ## GitHub Actions
 
@@ -116,4 +118,4 @@ uv run pytest
 uv build
 ```
 
-No automated test sends a real API request. Raw inputs and standalone generated images are not committed; only compact CSV/Markdown evidence and final compressed contact sheets are included for review.
+No automated test sends a real API request. Raw inputs and standalone generated images are not committed; compact CSV/Markdown evidence and crop-enhanced final contact sheets remain durable in the repository.
