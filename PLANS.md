@@ -1,97 +1,70 @@
 # Garment-consistency experiment plan
 
-**Summary:** Build the smallest runnable experiment that compares a direct baseline with two practical garment-consistency strategies, then present visual and measured results.
+**Summary:** Finish the assignment as a small evidence-driven experiment rather than a production platform. Slices 1 and 2 established the runner and operational baseline. Slice 3 consolidates all development experimentation. Slice 4 freezes the winner, evaluates holdouts once, and packages the submission.
 
 ```mermaid
 flowchart LR
-    S1[1. Foundation] --> S2[2. First live D01]
-    S2 --> S3[3. Model comparison]
-    S3 --> S4[4. Structured prompting]
-    S3 --> S5[5. Best-of-two selection]
-    S4 --> S6[6. Holdout evaluation]
-    S5 --> S6
-    S6 --> S7[7. Report and visuals]
+    S1[1. Foundation] --> S2[2. Operational D01 baseline]
+    S2 --> S3[3. D01-D03 development experiments]
+    S3 --> S4[4. Frozen holdouts + submission]
 ```
 
-## Milestones
+## Slice 1 — experiment foundation
 
-1. **Experiment foundation**
-   - Load three development and two holdout cases.
-   - Render one baseline prompt.
-   - Send one mocked OpenRouter Images API request and persist compact metadata.
-   - Configure tests, linting, typing, building, and CI.
+**Status:** complete.
 
-2. **Baseline evidence**
-   - Run one development case first and inspect it.
-   - Compare Seedream and Gemini on D01-D03.
-   - Select one generator based on garment fidelity, cost, and latency.
+**Output:** Case loading, prompt rendering, mocked OpenRouter boundary, metadata persistence, packaging, tests, and free CI.
 
-3. **Improvement strategies**
-   - Add structured garment-attribute prompting.
-   - Add best-of-two generation with VLM selection.
+**Decision gate:** The offline workflow is runnable and validation passes.
 
-4. **Evaluation and communication**
-   - Score visible garment attributes with a VLM and manual sanity check.
-   - Produce a comparison table and contact sheet.
-   - Write a short report covering failures, results, costs, and next steps.
+## Slice 2 — operational D01 baseline
 
-## Execution slices
+**Status:** complete.
 
-Each slice is one reviewable change with a concrete output and a decision gate before the next slice begins.
+**Output:** Guarded paid workflow, compact reference preprocessing, one successful Nano Banana 2 Lite D01 baseline, exact cost/latency evidence, and manual garment inspection.
 
-### 1. Experiment foundation
+**Decision gate:** OpenRouter, reference roles, persistence, and artifact inspection work end to end.
 
-**Output:** Case loading, baseline prompt rendering, mocked OpenRouter request handling, compact output persistence, tests, packaging, and CI.
+**Recorded decision:** Keep `google/gemini-3.1-flash-lite-image` as the operational generator. Seedream's failed long-running requests are sufficient operational evidence; do not spend more time on a second-generator comparison.
 
-**Decision gate:** The offline workflow is runnable and all validation gates pass.
+## Slice 3 — consolidated development experiments
 
-### 2. First live D01 baseline
+**Status:** in progress.
 
-**Output:** One Seedream generation for D01 with its image and metadata inspected manually.
+**Cases:** D01, D02, D03 only.
 
-**Decision gate:** The request works mechanically, the references are interpreted in the expected roles, and the saved metadata is sufficient to reproduce the call.
+**Strategies:**
 
-### 3. Baseline model comparison
+1. `baseline` — one direct generation.
+2. `structured` — visible garment attributes extracted from the packshot and injected as hard prompt constraints; candidate A is the standalone structured result.
+3. `best_of_two` — structured candidates A and B, scored by one fixed VLM; select the higher mean score, breaking ties toward A.
 
-**Output:** Seedream and Gemini outputs for D01-D03, with six images compared on garment fidelity, cost, and latency.
+**Fixed rubric:** color, print/logo, silhouette/length, construction details, texture/material, and garment presence. Scores are `1`, `0.5`, `0`, or `-1` for genuinely not applicable.
 
-**Decision gate:** Select one generator and stop comparing models.
+**Paid call budget:**
 
-### 4. Structured prompting
+- 9 image generations: three per development case.
+- 3 garment-attribute VLM requests.
+- 3 comparison/selection VLM requests.
+- 0 holdout requests.
+- 0 automatic retries.
 
-**Output:** Visible garment attributes and a structured prompt applied to the development cases, compared directly with their baselines.
+**Output:** Generated artifacts and metadata, per-case attribute extraction, VLM scores, deterministic selections, `results.csv`, `manual_scores.csv`, contact sheets, aggregate cost/latency, manual sanity check, and a frozen winner decision.
 
-**Decision gate:** Determine whether explicit garment attributes materially improve consistency without an extra generation call.
+**Decision gate:** Select exactly one strategy for slice 4 based on automatic scores, manual visual review, cost, latency, and robustness. Do not inspect holdouts before this decision is recorded.
 
-### 5. Best-of-two selection
+## Slice 4 — frozen holdouts and submission
 
-**Output:** Two candidates per development case, a VLM selection for each pair, and a manual check of whether the VLM chose correctly.
+**Status:** pending.
 
-**Decision gate:** Determine whether the extra generation call produces enough improvement to justify its cost and latency.
+**Output:** Apply the frozen generator, prompt, strategy, preprocessing, and rubric once to H01 and H02; complete manual checks; produce final comparison visuals, failure taxonomy, cost/latency summary, `REPORT.md`, and reproduction instructions.
 
-### 6. Holdout evaluation
-
-**Output:** Frozen model, prompts, strategy, and rubric applied once to H01-H02, followed by attribute-level VLM and human scores in `results.csv`.
-
-**Decision gate:** Freeze the reported results. Do not tune from holdout failures.
-
-### 7. Submission package
-
-**Output:** Contact sheet, failure-mode taxonomy, cost and latency summary, short `REPORT.md`, and final reproduction instructions in the README.
-
-**Decision gate:** The repository and report can be reviewed in roughly ten minutes and the visual evidence supports every major conclusion.
-
-### Milestone mapping
-
-- Milestone 1: slice 1
-- Milestone 2: slices 2-3
-- Milestone 3: slices 4-5
-- Milestone 4: slices 6-7
+**Decision gate:** Freeze reported results without tuning from holdout failures. The repository and report should be understandable in roughly ten minutes.
 
 ## Constraints
 
-- No fine-tuning, UI, deployment, production orchestration, or large benchmark.
-- Never commit input images, outputs, or API keys.
-- Do not inspect holdout results until the strategy and rubric are fixed.
-- No automatic retry of paid requests.
-- Record the prompt, references, model, strategy, and API-reported cost for every output.
+- No fine-tuning, UI, deployment, database, dashboard, generalized benchmark framework, or production orchestration.
+- Never commit API keys, input images, or generated images.
+- Paid workflows are manual/reusable only and have no automatic retry.
+- Keep generated outputs in short-lived GitHub artifacts; commit only compact evidence and decisions.
+- Do not inspect H01 or H02 until slice 3 has a frozen winner and rubric.
