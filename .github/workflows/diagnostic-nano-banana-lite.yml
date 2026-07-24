@@ -67,11 +67,15 @@ jobs:
                   })
           Path("diagnostic-output/input-sizes.json").write_text(json.dumps(records, indent=2))
           PY
-      - name: Run one lightweight image request
+      - name: Build request payload
         run: |
           set -euo pipefail
-          prompt=$(cat <<'PROMPT'
-          Create a realistic fashion photoshoot using the supplied references in this order:
+          python - <<'PY'
+          import base64
+          import json
+          from pathlib import Path
+
+          prompt = """Create a realistic fashion photoshoot using the supplied references in this order:
           1. the person/model image,
           2. the environment image,
           3. the garment packshot image(s).
@@ -79,90 +83,95 @@ jobs:
           Dress the person in every supplied garment and place them naturally in the supplied environment.
           Preserve the garment's visible color, print or logo, material, shape, length, seams, closures, and other distinctive details. Do not invent branding or redesign the garment.
 
-          Garment 1: shorts.png
-          PROMPT
-          )
+          Garment 1: shorts.png"""
 
-          person=$(base64 -w0 diagnostic-input/person.jpg)
-          environment=$(base64 -w0 diagnostic-input/environment.jpg)
-          garment=$(base64 -w0 diagnostic-input/garment.jpg)
+          def data_url(path: str) -> str:
+              encoded = base64.b64encode(Path(path).read_bytes()).decode("ascii")
+              return f"data:image/jpeg;base64,{encoded}"
 
-          jq -n \
-            --arg prompt "$prompt" \
-            --arg person "data:image/jpeg;base64,$person" \
-            --arg environment "data:image/jpeg;base64,$environment" \
-            --arg garment "data:image/jpeg;base64,$garment" \
-            '{
-              model: "google/gemini-3.1-flash-lite-image",
-              messages: [{
-                role: "user",
-                content: [
-                  {type: "text", text: $prompt},
-                  {type: "image_url", image_url: {url: $person}},
-                  {type: "image_url", image_url: {url: $environment}},
-                  {type: "image_url", image_url: {url: $garment}}
-                ]
+          payload = {
+              "model": "google/gemini-3.1-flash-lite-image",
+              "messages": [{
+                  "role": "user",
+                  "content": [
+                      {"type": "text", "text": prompt},
+                      {"type": "image_url", "image_url": {"url": data_url("diagnostic-input/person.jpg")}},
+                      {"type": "image_url", "image_url": {"url": data_url("diagnostic-input/environment.jpg")}},
+                      {"type": "image_url", "image_url": {"url": data_url("diagnostic-input/garment.jpg")}},
+                  ],
               }],
-              modalities: ["image", "text"]
-            }' > request.json
-
+              "modalities": ["image", "text"],
+          }
+          Path("request.json").write_text(json.dumps(payload))
+          PY
+      - name: Run one lightweight image request
+        run: |
+          set -uo pipefail
           started=$(date +%s%3N)
+          curl_exit=0
           status=$(curl --silent --show-error \
             --connect-timeout 15 --max-time 120 \
             -H "Authorization: Bearer $OPENROUTER_API_KEY" \
             -H "Content-Type: application/json" \
-            --data @request.json \
+            --data-binary @request.json \
             -o response.json \
             -w '%{http_code}' \
-            https://openrouter.ai/api/v1/chat/completions)
+            https://openrouter.ai/api/v1/chat/completions) || curl_exit=$?
           ended=$(date +%s%3N)
           latency_ms=$((ended - started))
 
-          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
-            jq -n \
-              --argjson status "$status" \
-              --argjson latency_ms "$latency_ms" \
-              --arg message "$(jq -r '.error.message // "unknown OpenRouter error"' response.json)" \
-              '{http_status: $status, latency_ms: $latency_ms, error: $message}' \
-              > diagnostic-output/error.json
-            cat diagnostic-output/error.json >&2
-            exit 1
-          fi
+          CURL_EXIT="$curl_exit" HTTP_STATUS="$status" LATENCY_MS="$latency_ms" python - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
 
-          data_url=$(jq -r '.choices[0].message.images[0].image_url.url // empty' response.json)
-          if [[ -z "$data_url" ]]; then
-            jq -n \
-              --argjson latency_ms "$latency_ms" \
-              --argjson response "$(jq '{model, usage, message: .choices[0].message}' response.json)" \
-              '{latency_ms: $latency_ms, response: $response}' \
-              > diagnostic-output/no-image-response.json
-            echo "OpenRouter returned no image" >&2
-            exit 1
-          fi
+          output = Path("diagnostic-output")
+          curl_exit = int(os.environ["CURL_EXIT"])
+          status_text = os.environ.get("HTTP_STATUS") or "0"
+          status = int(status_text)
+          latency_ms = int(os.environ["LATENCY_MS"])
 
-          media_type=${data_url%%;base64,*}
-          media_type=${media_type#data:}
-          encoded=${data_url#*,}
-          printf '%s' "$encoded" | base64 --decode > diagnostic-output/image.bin
+          if curl_exit != 0:
+              error = {"curl_exit": curl_exit, "http_status": status, "latency_ms": latency_ms}
+              (output / "error.json").write_text(json.dumps(error, indent=2))
+              raise SystemExit(f"curl failed with exit {curl_exit}")
 
-          extension=bin
-          case "$media_type" in
-            image/png) extension=png ;;
-            image/jpeg) extension=jpg ;;
-            image/webp) extension=webp ;;
-          esac
-          mv diagnostic-output/image.bin "diagnostic-output/image.$extension"
+          body = json.loads(Path("response.json").read_text())
+          if not 200 <= status < 300:
+              message = body.get("error", {}).get("message", "unknown OpenRouter error")
+              error = {"http_status": status, "latency_ms": latency_ms, "error": message}
+              (output / "error.json").write_text(json.dumps(error, indent=2))
+              raise SystemExit(message)
 
-          jq -n \
-            --arg model "google/gemini-3.1-flash-lite-image" \
-            --argjson latency_ms "$latency_ms" \
-            --arg media_type "$media_type" \
-            --arg text "$(jq -r '.choices[0].message.content // ""' response.json)" \
-            --argjson usage "$(jq '.usage // null' response.json)" \
-            '{model: $model, latency_ms: $latency_ms, media_type: $media_type, text: $text, usage: $usage}' \
-            > diagnostic-output/metadata.json
+          message = body.get("choices", [{}])[0].get("message", {})
+          images = message.get("images") or []
+          if not images:
+              record = {
+                  "latency_ms": latency_ms,
+                  "model": body.get("model"),
+                  "usage": body.get("usage"),
+                  "message": message,
+              }
+              (output / "no-image-response.json").write_text(json.dumps(record, indent=2))
+              raise SystemExit("OpenRouter returned no image")
 
-          cat diagnostic-output/metadata.json >> "$GITHUB_STEP_SUMMARY"
+          data_url = images[0]["image_url"]["url"]
+          header, encoded = data_url.split(",", 1)
+          media_type = header.removeprefix("data:").split(";", 1)[0]
+          suffix = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}.get(media_type, ".bin")
+          (output / f"image{suffix}").write_bytes(base64.b64decode(encoded))
+
+          metadata = {
+              "model": body.get("model", "google/gemini-3.1-flash-lite-image"),
+              "latency_ms": latency_ms,
+              "media_type": media_type,
+              "text": message.get("content") or "",
+              "usage": body.get("usage"),
+          }
+          (output / "metadata.json").write_text(json.dumps(metadata, indent=2))
+          print(json.dumps(metadata, indent=2))
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
