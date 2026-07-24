@@ -35,13 +35,13 @@ flowchart LR
 
 1. `baseline` — one direct generation.
 2. `structured` — visible garment attributes extracted from the packshot and injected as hard prompt constraints; candidate A is the standalone structured result.
-3. `best_of_two` — structured candidates A and B, scored by one fixed VLM; select the higher mean score, breaking ties toward A.
+3. `best_of_two` — structured candidates A and B, scored through opaque candidate IDs; select the higher mean score, breaking ties toward A.
 
-**Execution:** 9 image generations, 3 attribute-extraction VLM requests, 3 comparison VLM requests, 0 holdout requests, and 0 automatic retries.
+**Execution:** 9 image generations, 3 attribute-extraction VLM requests, 3 initial comparison requests, 3 blinded rescore requests, 0 holdout requests, and 0 automatic retries. The blinded rescore reused the original generated images.
 
-**Result:** Non-blinded exploratory automatic means were baseline `0.7222`, structured `0.7500`, and best-of-two `0.7500`; these are not used as independent strategy evidence because treatment labels were visible to the evaluator. Manual means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Corrected average end-to-end method cost/latency was baseline `$0.034466 / 5.48 s`, structured `$0.035331 / 8.16 s`, and best-of-two `$0.072641 / 54.19 s`. Best-of-two also disagreed with human preference on D03.
+**Result:** Blinded automatic means tied at `0.8889` for baseline, structured, and best-of-two. Manual means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Corrected average end-to-end method cost/latency was baseline `$0.034466 / 5.48 s`, structured `$0.035331 / 8.16 s`, and best-of-two `$0.072624 / 54.89 s`. Best-of-two also disagreed with human preference on D03.
 
-**Recorded decision:** Freeze `baseline` for slice 4 using `google/gemini-3.1-flash-lite-image`, `prompts/baseline.txt`, one `1K`/`3:4` candidate, existing compact preprocessing, and no resampling. Use `openai/gpt-4.1-mini` only for rough scoring and retain the manual rubric as the final check. Future comparative runs must reject inconsistent candidate-specific N/A masks.
+**Recorded decision:** Freeze `baseline` for slice 4 using `google/gemini-3.1-flash-lite-image`, `prompts/baseline.txt`, one `1K`/`3:4` candidate, existing compact preprocessing, and no resampling. Use `openai/gpt-4.1-mini` only for rough scoring, blind treatment identity in any comparison, enforce one source-level N/A mask, and retain the manual rubric as the final check.
 
 ## Slice 4 — frozen holdouts and submission
 

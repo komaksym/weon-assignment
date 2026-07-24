@@ -8,12 +8,16 @@ from pathlib import Path
 
 from weon_eval.cases import Case, load_cases
 from weon_eval.evaluation import (
+    CANDIDATE_IDS,
     JsonRequester,
     attribute_schema,
+    blinded_candidate_mapping,
     choose_best,
+    evaluation_prompt,
     evaluation_schema,
     parse_attributes,
     parse_scores,
+    strategy_candidate_ids,
     summary_text,
     validate_applicability_masks,
 )
@@ -57,16 +61,6 @@ def _attribute_prompt() -> str:
     )
 
 
-def _evaluation_prompt() -> str:
-    return (
-        "Image order: garment packshot, baseline result, structured candidate A, "
-        "structured candidate B. Score each result against the garment packshot on "
-        "color, print/logo, silhouette/length, construction details, texture/material, "
-        "and garment presence. Use 1 for preserved, 0.5 for partial, 0 for drifted, "
-        "and -1 only when the source attribute is genuinely not applicable."
-    )
-
-
 def _write_attributes(
     *,
     path: Path,
@@ -93,6 +87,7 @@ def _write_evaluation(
     *,
     path: Path,
     attributes: dict[str, str],
+    candidate_mapping: dict[str, str],
     evaluation_data: dict[str, object],
     selected: str,
     selection_cost_usd: Decimal | None,
@@ -103,6 +98,7 @@ def _write_evaluation(
         json.dumps(
             {
                 "attributes": attributes,
+                "candidate_mapping": candidate_mapping,
                 "evaluation": evaluation_data,
                 "selected": selected,
                 "selection_cost_usd": (
@@ -198,22 +194,31 @@ def run_development(
         baseline_image = image_path(baseline_dir)
         structured_a_image = image_path(structured_a_dir)
         structured_b_image = image_path(structured_b_dir)
+        candidate_images = {
+            "baseline": baseline_image,
+            "structured_a": structured_a_image,
+            "structured_b": structured_b_image,
+        }
+        candidate_mapping = blinded_candidate_mapping(case.id)
+        strategy_ids = strategy_candidate_ids(candidate_mapping)
+        ordered_candidate_images = tuple(
+            candidate_images[candidate_mapping[candidate_id]]
+            for candidate_id in CANDIDATE_IDS
+        )
         evaluation = requester(
             model=evaluator_model,
-            prompt=_evaluation_prompt(),
-            image_paths=(
-                *case.garments,
-                baseline_image,
-                structured_a_image,
-                structured_b_image,
-            ),
+            prompt=evaluation_prompt(),
+            image_paths=(*case.garments, *ordered_candidate_images),
             schema_name="garment_comparison",
             schema=evaluation_schema(),
             api_key=api_key,
         )
-        baseline_scores = parse_scores(evaluation.data, "baseline")
-        structured_a_scores = parse_scores(evaluation.data, "structured_a")
-        structured_b_scores = parse_scores(evaluation.data, "structured_b")
+        baseline_key = strategy_ids["baseline"]
+        structured_a_key = strategy_ids["structured_a"]
+        structured_b_key = strategy_ids["structured_b"]
+        baseline_scores = parse_scores(evaluation.data, baseline_key)
+        structured_a_scores = parse_scores(evaluation.data, structured_a_key)
+        structured_b_scores = parse_scores(evaluation.data, structured_b_key)
         validate_applicability_masks(
             baseline_scores,
             structured_a_scores,
@@ -276,6 +281,7 @@ def run_development(
             )
             + float_value(structured_b_metadata.get("latency_seconds")),
         }
+        selected_key = strategy_ids[selected]
         rows.extend(
             (
                 result_row(
@@ -284,7 +290,7 @@ def run_development(
                     candidate="baseline",
                     scores=baseline_scores,
                     run_metadata=baseline_metadata,
-                    summary=summary_text(evaluation.data, "baseline"),
+                    summary=summary_text(evaluation.data, baseline_key),
                 ),
                 result_row(
                     case_id=case.id,
@@ -293,7 +299,7 @@ def run_development(
                     scores=structured_a_scores,
                     run_metadata=structured_a_metadata,
                     attribute_metadata=attribute_metadata,
-                    summary=summary_text(evaluation.data, "structured_a"),
+                    summary=summary_text(evaluation.data, structured_a_key),
                 ),
                 result_row(
                     case_id=case.id,
@@ -303,13 +309,14 @@ def run_development(
                     run_metadata=combined_metadata,
                     attribute_metadata=attribute_metadata,
                     selection_metadata=selection_metadata,
-                    summary=summary_text(evaluation.data, selected),
+                    summary=summary_text(evaluation.data, selected_key),
                 ),
             )
         )
         _write_evaluation(
             path=case_root / "evaluation.json",
             attributes=attributes,
+            candidate_mapping=candidate_mapping,
             evaluation_data=evaluation.data,
             selected=selected,
             selection_cost_usd=evaluation.cost_usd,

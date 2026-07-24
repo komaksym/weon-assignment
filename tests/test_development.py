@@ -7,6 +7,12 @@ from pathlib import Path
 from PIL import Image
 
 from weon_eval.development import run_development
+from weon_eval.evaluation import (
+    CANDIDATE_IDS,
+    STRATEGIES,
+    blinded_candidate_mapping,
+    strategy_candidate_ids,
+)
 from weon_eval.openrouter import GenerationResult
 from weon_eval.prompts import ATTRIBUTE_DIMENSIONS
 from weon_eval.vlm import JsonResult
@@ -70,8 +76,10 @@ def test_run_development_executes_nine_generations_and_no_holdouts(tmp_path: Pat
         )
 
     request_names: list[str] = []
+    comparison_index = 0
 
     def requester(**kwargs: object) -> JsonResult:
+        nonlocal comparison_index
         name = str(kwargs["schema_name"])
         request_names.append(name)
         if name == "garment_attributes":
@@ -85,6 +93,11 @@ def test_run_development_executes_nine_generations_and_no_holdouts(tmp_path: Pat
                 cost_usd=Decimal("0.001"),
                 latency_seconds=0.1,
             )
+
+        case_id = ("D01", "D02", "D03")[comparison_index]
+        comparison_index += 1
+        mapping = blinded_candidate_mapping(case_id)
+        strategy_ids = strategy_candidate_ids(mapping)
         candidate = {
             "scores": {dimension: 0.5 for dimension in ATTRIBUTE_DIMENSIONS},
             "summary": "partial",
@@ -93,8 +106,20 @@ def test_run_development_executes_nine_generations_and_no_holdouts(tmp_path: Pat
             "scores": {dimension: 1 for dimension in ATTRIBUTE_DIMENSIONS},
             "summary": "best",
         }
+        data = {candidate_id: candidate for candidate_id in CANDIDATE_IDS}
+        data[strategy_ids["structured_b"]] = better
+
+        prompt = str(kwargs["prompt"])
+        assert all(candidate_id in prompt for candidate_id in CANDIDATE_IDS)
+        assert all(strategy not in prompt for strategy in STRATEGIES)
+        schema = kwargs["schema"]
+        assert isinstance(schema, dict)
+        properties = schema["properties"]
+        assert isinstance(properties, dict)
+        assert set(properties) == set(CANDIDATE_IDS)
+
         return JsonResult(
-            data={"baseline": candidate, "structured_a": candidate, "structured_b": better},
+            data=data,
             cost_usd=Decimal("0.002"),
             latency_seconds=0.2,
         )
@@ -161,3 +186,5 @@ def test_run_development_executes_nine_generations_and_no_holdouts(tmp_path: Pat
             (output_root / case_id / "best_of_two" / "selection.json").read_text()
         )
         assert selection["selected"] == "structured_b"
+        evaluation = json.loads((output_root / case_id / "evaluation.json").read_text())
+        assert evaluation["candidate_mapping"] == blinded_candidate_mapping(case_id)
