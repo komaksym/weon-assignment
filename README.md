@@ -91,7 +91,7 @@ uv run weon-development
 Fixed defaults:
 
 - generator: `google/gemini-3.1-flash-lite-image`;
-- evaluator: `google/gemini-2.5-flash-lite`;
+- evaluator: `openai/gpt-4.1-mini`;
 - cases: D01, D02, D03 only;
 - image calls: 9;
 - VLM calls: 6;
