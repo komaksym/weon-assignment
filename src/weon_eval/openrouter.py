@@ -6,10 +6,17 @@ import base64
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
 
 import httpx
+from PIL import Image
 
 IMAGES_URL = "https://openrouter.ai/api/v1/images"
+_IMAGE_MEDIA_TYPES = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+}
 
 
 class GenerationError(RuntimeError):
@@ -52,14 +59,22 @@ def _reported_cost(payload: object) -> Decimal | None:
         raise GenerationError("OpenRouter returned an invalid cost") from exc
 
 
-def _infer_media_type(image: bytes) -> str:
-    if image.startswith(b"\x89PNG\r\n\x1a\n"):
-        return "image/png"
-    if image.startswith(b"\xff\xd8\xff"):
-        return "image/jpeg"
-    if image.startswith(b"RIFF") and image[8:12] == b"WEBP":
-        return "image/webp"
-    raise GenerationError("OpenRouter returned an unsupported image format")
+def _validated_media_type(image: bytes) -> str:
+    try:
+        with Image.open(BytesIO(image)) as generated:
+            image_format = generated.format
+            generated.verify()
+        with Image.open(BytesIO(image)) as generated:
+            generated.load()
+    except (OSError, ValueError) as exc:
+        raise GenerationError("OpenRouter returned invalid image bytes") from exc
+
+    if image_format is None:
+        raise GenerationError("OpenRouter returned an unsupported image format")
+    try:
+        return _IMAGE_MEDIA_TYPES[image_format]
+    except KeyError as exc:
+        raise GenerationError("OpenRouter returned an unsupported image format") from exc
 
 
 def generate_image(
@@ -88,7 +103,9 @@ def generate_image(
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as exc:
         raise GenerationError("OpenRouter returned no usable image") from exc
 
-    media_type = raw_media_type if isinstance(raw_media_type, str) else _infer_media_type(image)
+    media_type = _validated_media_type(image)
+    if isinstance(raw_media_type, str) and raw_media_type != media_type:
+        raise GenerationError("OpenRouter media type does not match generated image")
     return GenerationResult(
         image=image,
         cost_usd=_reported_cost(body),
