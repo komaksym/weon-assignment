@@ -1,0 +1,14 @@
+{
+  "method": "frozen case-specific normalized garment-region crop",
+  "affects_generation_or_scoring": false,
+  "H01": {
+    "source_dimensions": [896, 1200],
+    "normalized_box": [0.23, 0.77, 0.78, 0.99],
+    "pixel_box": [206, 924, 699, 1188]
+  },
+  "H02": {
+    "source_dimensions": [896, 1200],
+    "normalized_box": [0.29, 0.39, 0.71, 0.69],
+    "pixel_box": [260, 468, 636, 828]
+  }
+}
