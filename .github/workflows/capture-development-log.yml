@@ -18,8 +18,8 @@ jobs:
       - name: Download sanitized log tail
         run: |
           set -euo pipefail
-          gh api repos/${{ github.repository }}/actions/jobs/89507186734/logs > full.log
-          tail -n 100 full.log > evaluator-log-tail.txt
+          gh api repos/${{ github.repository }}/actions/jobs/89507908357/logs > full.log
+          tail -n 80 full.log > evaluator-log-tail.txt
       - uses: actions/upload-artifact@v4
         with:
           name: evaluator-log-tail-${{ github.run_id }}
