@@ -12,7 +12,7 @@
       "split": "development",
       "model": "inputs/models/white-tee-man.png",
       "environment": "inputs/environments/forest.png",
-      "garments": ["inputs/garments/sneakers.png"]
+      "garments": ["inputs/garments/sneakers.jpg"]
     },
     {
       "id": "D03",
@@ -26,7 +26,7 @@
       "split": "holdout",
       "model": "inputs/models/cream-sweater-woman.png",
       "environment": "inputs/environments/street.png",
-      "garments": ["inputs/garments/sneakers.png"]
+      "garments": ["inputs/garments/sneakers.jpg"]
     },
     {
       "id": "H02",
