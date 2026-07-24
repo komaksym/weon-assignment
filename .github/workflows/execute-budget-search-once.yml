@@ -1,0 +1,17 @@
+name: Execute budgeted method search once
+
+on:
+  pull_request:
+    branches: [experiment/budgeted-method-search]
+
+permissions:
+  contents: read
+
+jobs:
+  execute:
+    if: ${{ github.head_ref == 'execute/budgeted-method-search' }}
+    uses: ./.github/workflows/run-budget-search.yml
+    with:
+      confirm_paid_run: true
+      max_paid_requests: 600
+    secrets: inherit
