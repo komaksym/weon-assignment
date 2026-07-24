@@ -1,9 +1,9 @@
 name: Execute frozen holdouts once
 
 on:
-  push:
+  pull_request:
     branches:
-      - execute/slice-4-frozen-holdouts
+      - feature/slice-4-holdout-submission
 
 jobs:
   run:
