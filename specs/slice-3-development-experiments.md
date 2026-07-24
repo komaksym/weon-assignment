@@ -30,6 +30,8 @@ For each of D01, D02, and D03:
 
 This produces nine image calls and six VLM calls. Candidate A is reused rather than regenerated for the standalone structured comparison.
 
+The completed automatic comparison exposed the treatment identities `baseline`, `structured_a`, and `structured_b` to the evaluator. Those scores are therefore classified as non-blinded exploratory diagnostics, not independent strategy evidence. Existing images are not rescored. Future comparative runs must reject candidate-specific N/A masks before calculating means or selecting a winner.
+
 ## Rubric
 
 Each generated result receives one score for:
@@ -48,7 +50,7 @@ Allowed values:
 - `0` — drifted or missing;
 - `-1` — genuinely not applicable in the packshot.
 
-The mean excludes `-1` dimensions.
+The mean excludes `-1` dimensions, but applicability is source-level: baseline, A, and B must have identical `-1` masks or the evaluation is rejected.
 
 ## Evidence
 
@@ -58,7 +60,7 @@ The workflow must produce:
 - `attributes.json` and `evaluation.json` for each case;
 - `selection.json` and the selected best-of-two image for each case;
 - one contact sheet per case;
-- `results.csv` with automatic scores, costs, and latency;
+- `results.csv` with automatic scores and separate generation, attribute-extraction, selection, and total cost/latency fields;
 - `manual_scores.csv` with the same rubric and selector-agreement field;
 - `development_summary.json` with request counts, aggregate costs/latencies, automatic strategy means, and pending winner status.
 
@@ -72,8 +74,8 @@ After the single paid workflow completes:
 - score all nine strategy rows manually;
 - verify whether each VLM best-of-two choice is reasonable;
 - record disagreements rather than rerunning candidates;
-- compare automatic and manual strategy means;
-- consider total cost and latency before selecting the winner.
+- treat automatic means as non-blinded exploratory diagnostics;
+- consider end-to-end method cost and latency, including required attribute extraction, before selecting the winner.
 
 ## Decision gate
 
