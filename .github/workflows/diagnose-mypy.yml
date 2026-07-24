@@ -1,0 +1,24 @@
+name: Diagnose mypy
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - name: Capture mypy output
+        run: uv run mypy src > mypy.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mypy-diagnostics-${{ github.run_id }}
+          path: mypy.txt
+          retention-days: 1
