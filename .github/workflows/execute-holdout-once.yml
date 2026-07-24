@@ -1,0 +1,13 @@
+name: Execute frozen holdouts once
+
+on:
+  push:
+    branches:
+      - execute/slice-4-frozen-holdouts
+
+jobs:
+  run:
+    uses: ./.github/workflows/run-holdout.yml
+    with:
+      confirm_paid_run: true
+    secrets: inherit
