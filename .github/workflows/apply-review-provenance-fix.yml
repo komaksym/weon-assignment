@@ -21,14 +21,16 @@ jobs:
           python-version: "3.12"
       - name: Apply factual correction
         run: python scripts/apply_review_provenance_fix.py
-      - name: Validate
-        run: |
-          set -euo pipefail
-          uv sync --dev
-          uv run ruff check .
-          uv run mypy src
-          uv run pytest
-          uv build
+      - name: Sync dependencies
+        run: uv sync --dev
+      - name: Ruff
+        run: uv run ruff check .
+      - name: Strict mypy
+        run: uv run mypy src
+      - name: Tests
+        run: uv run pytest
+      - name: Build
+        run: uv build
       - name: Commit correction and remove one-use machinery
         run: |
           set -euo pipefail
