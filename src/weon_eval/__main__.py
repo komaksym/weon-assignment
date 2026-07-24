@@ -11,7 +11,7 @@ from weon_eval.openrouter import GenerationError
 from weon_eval.prompts import render_prompt
 from weon_eval.runner import run_case
 
-DEFAULT_MODEL = "bytedance-seed/seedream-4.5"
+DEFAULT_MODEL = "google/gemini-3.1-flash-lite-image"
 
 
 def _parser() -> argparse.ArgumentParser:
