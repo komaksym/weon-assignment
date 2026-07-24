@@ -214,13 +214,17 @@ def _result_row(
     return row
 
 
-def _manual_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+def _review_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Create a reviewer-attributed visual-assessment scaffold."""
+
     return [
         {
             "case_id": row["case_id"],
             "strategy": "baseline",
+            "reviewer": "",
+            "review_method": "",
             **{dimension: "" for dimension in ATTRIBUTE_DIMENSIONS},
-            "mean_manual_score": "",
+            "mean_review_score": "",
             "notes": "",
         }
         for row in rows
@@ -315,7 +319,7 @@ def run_holdouts(
         evaluation_latency += evaluation.latency_seconds
 
     write_csv(output_root / "results.csv", rows)
-    write_csv(output_root / "manual_scores.csv", _manual_rows(rows))
+    write_csv(output_root / "review_scores.csv", _review_rows(rows))
     (output_root / "holdout_summary.json").write_text(
         json.dumps(
             {
@@ -336,7 +340,7 @@ def run_holdouts(
                     float_value(row["mean_auto_score"]) for row in rows
                 )
                 / len(rows),
-                "status": "frozen - pending manual sanity check",
+                "status": "frozen - pending reviewer-attributed visual assessment",
             },
             indent=2,
         )

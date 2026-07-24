@@ -4,7 +4,7 @@
 
 `complete — freeze baseline for slice 4`
 
-The consolidated D01-D03 matrix compared the direct baseline, structured garment prompting, and VLM-selected best-of-two. A follow-up blinded rescore reused the existing nine images with opaque candidate IDs and a recorded deterministic permutation. The blinded evaluator tied all three strategies, while manual review favored the baseline after cost, latency, selector reliability, and complexity were considered.
+The consolidated D01-D03 matrix compared the direct baseline, structured garment prompting, and VLM-selected best-of-two. A follow-up blinded rescore reused the existing nine images with opaque candidate IDs and a recorded deterministic permutation. The blinded evaluator tied all three strategies, while the ChatGPT visual assessment favored the baseline after cost, latency, selector reliability, and complexity were considered.
 
 ## Execution
 
@@ -30,7 +30,7 @@ The first isolated execution used `google/gemini-2.5-flash-lite` as evaluator. I
 
 ## Aggregate comparison
 
-| Strategy | Blinded automatic mean | Manual mean | Average method cost | Average method latency |
+| Strategy | Blinded automatic mean | ChatGPT visual-assessment mean | Average method cost | Average method latency |
 | --- | ---: | ---: | ---: | ---: |
 | Baseline | **0.8889** | **0.6833** | **$0.034466** | **5.48 s** |
 | Structured | **0.8889** | 0.6500 | $0.035331 | 8.16 s |
@@ -40,15 +40,17 @@ Structured and best-of-two totals each include the garment-attribute extraction 
 
 The earlier treatment-labelled automatic means—baseline `0.7222`, structured `0.7500`, and best-of-two `0.7500`—are superseded as comparative evidence. Once the same images were rescored behind opaque case-specific IDs, every strategy tied at `0.8889`. This removes the apparent automatic advantage for structured prompting.
 
-## Manual sanity check
+## ChatGPT visual assessment
 
-| Case | Blinded selector | Human selector assessment | Main observation |
+ChatGPT assigned these scores from the contact sheets. They are a separate AI judgment path, not independent human evaluation.
+
+| Case | Blinded selector | ChatGPT selector assessment | Main observation |
 | --- | --- | --- | --- |
 | D01 shorts | Structured A | Tie; A acceptable | All variants lose exact logo and pocket/panel geometry. |
 | D02 sneakers | Structured A | Tie; A acceptable | Shape and color are preserved, but ARIGATO branding is absent and exact material/panel fidelity is weaker than the automatic perfect score suggests. |
 | D03 jacket | Structured A | **Disagree; B looked closer** | A shifts toward brown/olive in sunlight; B better preserves dark-green color and collar contrast. |
 
-The selector still chose A for all three cases. D01 and D02 are reasonable ties, while D03 remains a human disagreement. The source-level N/A mask matched across all three candidates in every blinded comparison; the evaluator boundary now rejects future mismatches before scoring or selection.
+The selector still chose A for all three cases. D01 and D02 are reasonable ties, while D03 remains a ChatGPT-assessment disagreement. The source-level N/A mask matched across all three candidates in every blinded comparison; the evaluator boundary now rejects future mismatches before scoring or selection.
 
 ## Failure taxonomy
 
@@ -57,7 +59,7 @@ The selector still chose A for all three cases. D01 and D02 are reasonable ties,
 - **Texture simplification:** Technical fabric, suede/leather separation, waxed coating, and corduroy are only partially retained.
 - **Lighting-driven color drift:** Structured D03 is pushed toward brown/olive despite explicit dark-green constraints.
 - **Evaluator overconfidence:** The blinded evaluator assigned high or perfect scores despite visible missing branding and construction differences.
-- **Selection overhead without benefit:** Best-of-two more than doubled method cost and substantially increased latency without improving the manual aggregate.
+- **Selection overhead without benefit:** Best-of-two more than doubled method cost and substantially increased latency without improving the ChatGPT visual-assessment aggregate.
 
 ## Decision
 
@@ -72,9 +74,9 @@ Freeze the following for slice 4:
 - reference order: person, environment, garment packshot(s);
 - preprocessing: EXIF orientation, maximum 1024 pixels, white transparency composition, JPEG quality 85;
 - evaluator for rough scoring: `openai/gpt-4.1-mini` with opaque candidate identity where comparisons are made;
-- manual rubric: color, print/logo, silhouette/length, construction details, texture/material, presence;
+- visual-assessment rubric: color, print/logo, silhouette/length, construction details, texture/material, presence;
 - retries and resampling: none.
 
-The blinded automatic comparison provides no strategy advantage. Baseline remains the manual winner, is the cheapest and fastest method, avoids attribute-extraction and selection dependencies, and is therefore the strongest frozen choice for the two holdouts.
+The blinded automatic comparison provides no strategy advantage. Baseline selection is operationally justified by lower cost, latency, and complexity; the ChatGPT visual-assessment lead is supplemental rather than human-grounded evidence. Baseline remains the ChatGPT visual-assessment leader, is the cheapest and fastest method, avoids attribute-extraction and selection dependencies, and is therefore the strongest frozen choice for the two holdouts.
 
 H01 and H02 remain ungenerated and uninspected. They may now be evaluated once in slice 4 using the frozen configuration.

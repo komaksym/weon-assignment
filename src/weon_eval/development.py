@@ -26,9 +26,9 @@ from weon_eval.reporting import (
     decimal_value,
     float_value,
     image_path,
-    manual_rows,
     metadata,
     result_row,
+    review_rows,
     strategy_means,
     write_best_of_two,
     write_contact_sheet,
@@ -325,7 +325,7 @@ def run_development(
         )
 
     write_csv(output_root / "results.csv", rows)
-    write_csv(output_root / "manual_scores.csv", manual_rows(rows))
+    write_csv(output_root / "review_scores.csv", review_rows(rows))
     auto_strategy_means = strategy_means(rows)
     auto_winner = max(auto_strategy_means, key=auto_strategy_means.__getitem__)
     (output_root / "development_summary.json").write_text(
