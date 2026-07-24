@@ -14,9 +14,6 @@ jobs:
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     steps:
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
       - name: Read key allowance
         run: |
           python - <<'PY'
