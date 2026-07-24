@@ -7,12 +7,14 @@ Compare a direct baseline with two practical garment-consistency improvements on
 ## Fixed experiment
 
 - Generator: `google/gemini-3.1-flash-lite-image`.
-- Evaluator: `google/gemini-2.5-flash-lite`.
+- Evaluator: `openai/gpt-4.1-mini`.
 - Output: one `1K`, `3:4` image per generation request.
 - Reference order: person/model, environment, garment packshot(s).
 - Preprocessing: EXIF orientation, maximum 1024 pixels, white transparency composition, JPEG quality 85.
 - Holdout cases: inaccessible in this workflow.
 - Retries: none.
+
+The initially selected Gemini Flash Lite evaluator successfully extracted packshot attributes but repeatedly returned a provider error when generated human images were included. GPT-4.1 Mini completed the exact four-image structured comparison, so it is frozen as the evaluator before the full matrix.
 
 ## Strategy matrix
 
