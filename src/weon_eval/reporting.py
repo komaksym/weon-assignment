@@ -128,10 +128,21 @@ def result_row(
     scores: Mapping[str, float],
     run_metadata: Mapping[str, object],
     summary: str,
+    attribute_metadata: Mapping[str, object] | None = None,
     selection_metadata: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     generation_cost = decimal_value(run_metadata.get("cost_usd"))
     generation_latency = float_value(run_metadata.get("latency_seconds"))
+    attribute_cost = (
+        decimal_value(attribute_metadata.get("cost_usd"))
+        if attribute_metadata
+        else Decimal("0")
+    )
+    attribute_latency = (
+        float_value(attribute_metadata.get("latency_seconds"))
+        if attribute_metadata
+        else 0.0
+    )
     selection_cost = (
         decimal_value(selection_metadata.get("selection_cost_usd"))
         if selection_metadata
@@ -148,11 +159,15 @@ def result_row(
         "candidate": candidate,
         "mean_auto_score": mean_score(scores),
         "generation_cost_usd": str(generation_cost),
+        "attribute_extraction_cost_usd": str(attribute_cost),
         "selection_cost_usd": str(selection_cost),
-        "total_strategy_cost_usd": str(generation_cost + selection_cost),
+        "total_strategy_cost_usd": str(generation_cost + attribute_cost + selection_cost),
         "generation_latency_seconds": generation_latency,
+        "attribute_extraction_latency_seconds": attribute_latency,
         "selection_latency_seconds": selection_latency,
-        "total_strategy_latency_seconds": generation_latency + selection_latency,
+        "total_strategy_latency_seconds": (
+            generation_latency + attribute_latency + selection_latency
+        ),
         "auto_summary": summary,
     }
     row.update(scores)
