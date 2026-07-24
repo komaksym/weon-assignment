@@ -1,0 +1,89 @@
+name: Diagnose evaluator once
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    if: ${{ github.head_ref == 'execute/slice-3-development-matrix' }}
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - uses: actions/download-artifact@v4
+        with:
+          name: development-matrix-30100695592
+          path: outputs/development
+          github-token: ${{ github.token }}
+          run-id: 30100695592
+      - run: uv run weon-prepare-inputs D01
+      - name: Score D01 candidates separately
+        run: |
+          uv run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from weon_eval.prompts import ATTRIBUTE_DIMENSIONS
+          from weon_eval.vlm import request_json
+
+          score_properties = {
+              dimension: {"type": "number", "enum": [-1, 0, 0.5, 1]}
+              for dimension in ATTRIBUTE_DIMENSIONS
+          }
+          schema = {
+              "type": "object",
+              "properties": {
+                  "scores": {
+                      "type": "object",
+                      "properties": score_properties,
+                      "required": list(ATTRIBUTE_DIMENSIONS),
+                      "additionalProperties": False,
+                  },
+                  "summary": {"type": "string", "minLength": 1},
+              },
+              "required": ["scores", "summary"],
+              "additionalProperties": False,
+          }
+          root = Path("outputs/development/D01/google_gemini-3.1-flash-lite-image")
+          garment = Path("inputs/garments/shorts.png")
+          results = {}
+          for candidate in ("baseline", "structured_a", "structured_b"):
+              image = next((root / candidate).glob("image.*"))
+              result = request_json(
+                  model="google/gemini-2.5-flash-lite",
+                  prompt=(
+                      "Image order: garment packshot, generated result. Score the generated "
+                      "garment on color, print/logo, silhouette/length, construction details, "
+                      "texture/material, and garment presence. Use 1, 0.5, 0, or -1 only when "
+                      "the source attribute is genuinely not applicable."
+                  ),
+                  image_paths=(garment, image),
+                  schema_name="candidate_score",
+                  schema=schema,
+                  api_key=os.environ["OPENROUTER_API_KEY"],
+              )
+              results[candidate] = {
+                  "data": result.data,
+                  "cost_usd": str(result.cost_usd) if result.cost_usd is not None else None,
+                  "latency_seconds": result.latency_seconds,
+              }
+          Path("evaluator-diagnostic.json").write_text(json.dumps(results, indent=2) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluator-diagnostic-${{ github.run_id }}
+          path: evaluator-diagnostic.json
+          if-no-files-found: warn
+          retention-days: 1
