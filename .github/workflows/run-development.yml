@@ -12,7 +12,7 @@ on:
         description: OpenRouter vision evaluator model slug
         required: true
         type: string
-        default: google/gemini-2.5-flash-lite
+        default: openai/gpt-4.1-mini
       confirm_paid_run:
         description: Confirm nine image requests and six VLM requests
         required: true
