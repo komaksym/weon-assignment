@@ -13,6 +13,7 @@ dependencies = [
 weon-eval = "weon_eval.__main__:main"
 weon-prepare-inputs = "weon_eval.prepare_inputs:main"
 weon-development = "weon_eval.development_cli:main"
+weon-holdout = "weon_eval.holdout_cli:main"
 
 [dependency-groups]
 dev = [
