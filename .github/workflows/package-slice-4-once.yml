@@ -41,7 +41,6 @@ jobs:
           from PIL import Image
 
           output = Path("submission/figures")
-
           development = []
           for case_id in ("D01", "D02", "D03"):
               with Image.open(Path("/tmp/dev") / case_id / "contact_sheet.jpg") as source:
@@ -82,6 +81,8 @@ jobs:
       - name: Rebuild three-commit history
         run: |
           set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           files=(
             .github/workflows/run-holdout.yml
             PLANS.md
