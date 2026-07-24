@@ -240,7 +240,9 @@ def run_holdouts(
                 "total_experiment_cost_usd": str(generation_cost + evaluation_cost),
                 "total_generation_latency_seconds": generation_latency,
                 "total_evaluation_latency_seconds": evaluation_latency,
-                "mean_auto_score": sum(float(row["mean_auto_score"]) for row in rows)
+                "mean_auto_score": sum(
+                    float_value(row["mean_auto_score"]) for row in rows
+                )
                 / len(rows),
                 "status": "frozen - pending manual sanity check",
             },
