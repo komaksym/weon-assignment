@@ -18,10 +18,11 @@ class GenerationError(RuntimeError):
 
 @dataclass(frozen=True)
 class GenerationResult:
-    """Generated image bytes and API-reported cost."""
+    """Generated image bytes, media type, and API-reported cost."""
 
     image: bytes
     cost_usd: Decimal | None
+    media_type: str = "image/png"
 
 
 def _error_message(response: httpx.Response) -> str:
@@ -51,6 +52,16 @@ def _reported_cost(payload: object) -> Decimal | None:
         raise GenerationError("OpenRouter returned an invalid cost") from exc
 
 
+def _infer_media_type(image: bytes) -> str:
+    if image.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if image.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if image.startswith(b"RIFF") and image[8:12] == b"WEBP":
+        return "image/webp"
+    raise GenerationError("OpenRouter returned an unsupported image format")
+
+
 def generate_image(
     payload: Mapping[str, object],
     api_key: str,
@@ -70,9 +81,16 @@ def generate_image(
 
     try:
         body = response.json()
-        encoded = body["data"][0]["b64_json"]
+        item = body["data"][0]
+        encoded = item["b64_json"]
         image = base64.b64decode(encoded, validate=True)
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raw_media_type = item.get("media_type")
+    except (AttributeError, KeyError, IndexError, TypeError, ValueError) as exc:
         raise GenerationError("OpenRouter returned no usable image") from exc
 
-    return GenerationResult(image=image, cost_usd=_reported_cost(body))
+    media_type = raw_media_type if isinstance(raw_media_type, str) else _infer_media_type(image)
+    return GenerationResult(
+        image=image,
+        cost_usd=_reported_cost(body),
+        media_type=media_type,
+    )
