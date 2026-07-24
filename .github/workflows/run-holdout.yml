@@ -51,8 +51,8 @@ jobs:
       - name: Prepare frozen holdouts
         run: |
           set -euo pipefail
-          uv run weon-prepare-inputs H01
-          uv run weon-prepare-inputs H02
+          uv run weon-prepare-inputs H01 --allow-holdout
+          uv run weon-prepare-inputs H02 --allow-holdout
       - name: Run frozen holdout matrix
         run: uv run weon-holdout
       - name: Publish summary
