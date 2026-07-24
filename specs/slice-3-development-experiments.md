@@ -14,7 +14,7 @@ Compare a direct baseline with two practical garment-consistency improvements on
 - Holdout cases: inaccessible in this workflow.
 - Retries: none.
 
-The initially selected Gemini Flash Lite evaluator successfully extracted packshot attributes but repeatedly returned a provider error when generated human images were included. GPT-4.1 Mini completed the exact four-image structured comparison, so it is frozen as the evaluator before the full matrix.
+The initially selected Gemini Flash Lite evaluator extracted packshot attributes but repeatedly returned a provider error when generated human images were included. GPT-4.1 Mini completed the comparison and was frozen as evaluator before the successful matrix.
 
 ## Strategy matrix
 
@@ -24,13 +24,12 @@ For each of D01, D02, and D03:
 2. Generate one `baseline` candidate with the existing baseline prompt.
 3. Generate `structured_a` using the extracted attributes as hard constraints.
 4. Generate `structured_b` with the identical structured prompt.
-5. Score baseline, A, and B together against the packshot.
-6. Treat A as the standalone `structured` result.
-7. Select A or B as `best_of_two` using the higher mean applicable score; ties select A.
+5. Map baseline, A, and B to opaque `candidate_1..3` IDs using a deterministic case-specific SHA-256 permutation.
+6. Record that mapping, show only opaque IDs to the evaluator, and score all three against the packshot.
+7. Treat A as the standalone `structured` result.
+8. Map the scores back to their strategies and select A or B for `best_of_two`; ties select A.
 
-This produces nine image calls and six VLM calls. Candidate A is reused rather than regenerated for the standalone structured comparison.
-
-The completed automatic comparison exposed the treatment identities `baseline`, `structured_a`, and `structured_b` to the evaluator. Those scores are therefore classified as non-blinded exploratory diagnostics, not independent strategy evidence. Existing images are not rescored. Future comparative runs must reject candidate-specific N/A masks before calculating means or selecting a winner.
+This produces nine image calls and six VLM calls in a fresh matrix. Candidate A is reused rather than regenerated for the standalone structured comparison. Existing image artifacts may be rescored with three comparison-only VLM calls and zero image calls.
 
 ## Rubric
 
@@ -48,9 +47,9 @@ Allowed values:
 - `1` — preserved;
 - `0.5` — partially preserved;
 - `0` — drifted or missing;
-- `-1` — genuinely not applicable in the packshot.
+- `-1` — genuinely not applicable in the source packshot.
 
-The mean excludes `-1` dimensions, but applicability is source-level: baseline, A, and B must have identical `-1` masks or the evaluation is rejected.
+Applicability is source-level. Baseline, A, and B must have an identical `-1` mask; mismatched masks are rejected before means or selection are calculated. The mean excludes the shared `-1` dimensions.
 
 ## Evidence
 
@@ -58,9 +57,10 @@ The workflow must produce:
 
 - original generation image and metadata for all nine requests;
 - `attributes.json` and `evaluation.json` for each case;
+- the recorded opaque candidate mapping for every comparison;
 - `selection.json` and the selected best-of-two image for each case;
 - one contact sheet per case;
-- `results.csv` with automatic scores and separate generation, attribute-extraction, selection, and total cost/latency fields;
+- `results.csv` with automatic scores, generation/setup/selection costs, and latency;
 - `manual_scores.csv` with the same rubric and selector-agreement field;
 - `development_summary.json` with request counts, aggregate costs/latencies, automatic strategy means, and pending winner status.
 
@@ -74,8 +74,8 @@ After the single paid workflow completes:
 - score all nine strategy rows manually;
 - verify whether each VLM best-of-two choice is reasonable;
 - record disagreements rather than rerunning candidates;
-- treat automatic means as non-blinded exploratory diagnostics;
-- consider end-to-end method cost and latency, including required attribute extraction, before selecting the winner.
+- compare blinded automatic and manual strategy means;
+- consider complete end-to-end cost and latency before selecting the winner.
 
 ## Decision gate
 

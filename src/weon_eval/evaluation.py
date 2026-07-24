@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping, Sequence
+from itertools import permutations
 from pathlib import Path
 from typing import Protocol
 
@@ -10,6 +12,8 @@ from weon_eval.prompts import ATTRIBUTE_DIMENSIONS
 from weon_eval.vlm import JsonResult
 
 _ALLOWED_SCORES = {-1.0, 0.0, 0.5, 1.0}
+CANDIDATE_IDS = ("candidate_1", "candidate_2", "candidate_3")
+STRATEGIES = ("baseline", "structured_a", "structured_b")
 
 
 class JsonRequester(Protocol):
@@ -72,14 +76,39 @@ def evaluation_schema() -> dict[str, object]:
     candidate = _candidate_schema()
     return {
         "type": "object",
-        "properties": {
-            "baseline": candidate,
-            "structured_a": candidate,
-            "structured_b": candidate,
-        },
-        "required": ["baseline", "structured_a", "structured_b"],
+        "properties": {candidate_id: candidate for candidate_id in CANDIDATE_IDS},
+        "required": list(CANDIDATE_IDS),
         "additionalProperties": False,
     }
+
+
+def evaluation_prompt() -> str:
+    """Describe the rubric without exposing treatment identity."""
+
+    return (
+        "Image order: garment packshot(s), candidate_1, candidate_2, candidate_3. "
+        "The candidate IDs are opaque. Judge every candidate only against the garment "
+        "packshot on color, print/logo, silhouette/length, construction details, "
+        "texture/material, and garment presence. Use 1 for preserved, 0.5 for partial, "
+        "0 for drifted, and -1 only when the source attribute is genuinely not applicable."
+    )
+
+
+def blinded_candidate_mapping(case_id: str) -> dict[str, str]:
+    """Map opaque IDs to strategies using a stable case-specific permutation."""
+
+    orders = tuple(permutations(STRATEGIES))
+    digest = hashlib.sha256(case_id.encode()).digest()
+    index = int.from_bytes(digest[:2], "big") % len(orders)
+    return dict(zip(CANDIDATE_IDS, orders[index], strict=True))
+
+
+def strategy_candidate_ids(mapping: Mapping[str, str]) -> dict[str, str]:
+    """Invert and validate an opaque candidate mapping."""
+
+    if set(mapping) != set(CANDIDATE_IDS) or set(mapping.values()) != set(STRATEGIES):
+        raise ValueError("invalid blinded candidate mapping")
+    return {strategy: candidate_id for candidate_id, strategy in mapping.items()}
 
 
 def parse_attributes(data: Mapping[str, object]) -> dict[str, str]:
