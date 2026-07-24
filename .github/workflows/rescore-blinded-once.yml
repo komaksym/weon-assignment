@@ -1,0 +1,217 @@
+name: Rescore blinded once
+
+on:
+  pull_request:
+    types: [ready_for_review]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  rescore:
+    if: github.head_ref == 'execute/pr8-blinded-rescore'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      SOURCE_ARTIFACT_ID: "8600095070"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Guard secret
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+            echo "OPENROUTER_API_KEY is not configured" >&2
+            exit 2
+          fi
+      - name: Prepare development packshots
+        run: |
+          set -euo pipefail
+          for case_id in D01 D02 D03; do
+            uv run weon-prepare-inputs "$case_id"
+          done
+      - name: Download original matrix artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
+            --output matrix.zip
+          mkdir -p outputs/development
+          unzip -q matrix.zip -d outputs/development
+      - name: Run three blinded comparisons
+        run: |
+          uv run python - <<'PY'
+          import csv
+          import json
+          import os
+          from decimal import Decimal
+          from pathlib import Path
+
+          from weon_eval.cases import load_cases
+          from weon_eval.development import DEFAULT_EVALUATOR_MODEL, DEVELOPMENT_CASE_IDS
+          from weon_eval.evaluation import (
+              CANDIDATE_IDS,
+              blinded_candidate_mapping,
+              choose_best,
+              evaluation_prompt,
+              evaluation_schema,
+              mean_score,
+              parse_scores,
+              strategy_candidate_ids,
+              summary_text,
+              validate_applicability_masks,
+          )
+          from weon_eval.reporting import image_path
+          from weon_eval.vlm import request_json
+
+          source_root = Path("outputs/development")
+          output_root = Path("outputs/blinded-rescore")
+          output_root.mkdir(parents=True)
+          cases = load_cases(Path("cases.json"))
+          source_rows = list(
+              csv.DictReader(Path("experiments/slice-3-auto-results.csv").open())
+          )
+          source_by_key = {
+              (row["case_id"], row["strategy"]): row for row in source_rows
+          }
+          result_rows: list[dict[str, str]] = []
+          comparisons: dict[str, object] = {}
+          selections: dict[str, str] = {}
+          total_cost = Decimal("0")
+          total_latency = 0.0
+
+          for case_id in DEVELOPMENT_CASE_IDS:
+              case = cases[case_id]
+              case_root = source_root / case_id
+              baseline_dir = next(case_root.glob("*/baseline"))
+              model_root = baseline_dir.parent
+              candidate_images = {
+                  "baseline": image_path(baseline_dir),
+                  "structured_a": image_path(model_root / "structured_a"),
+                  "structured_b": image_path(model_root / "structured_b"),
+              }
+              candidate_mapping = blinded_candidate_mapping(case_id)
+              strategy_ids = strategy_candidate_ids(candidate_mapping)
+              ordered_images = tuple(
+                  candidate_images[candidate_mapping[candidate_id]]
+                  for candidate_id in CANDIDATE_IDS
+              )
+              comparison = request_json(
+                  model=DEFAULT_EVALUATOR_MODEL,
+                  prompt=evaluation_prompt(),
+                  image_paths=(*case.garments, *ordered_images),
+                  schema_name=f"blinded_garment_comparison_{case_id.lower()}",
+                  schema=evaluation_schema(),
+                  api_key=os.environ["OPENROUTER_API_KEY"],
+              )
+              scores = {
+                  strategy: parse_scores(comparison.data, candidate_id)
+                  for strategy, candidate_id in strategy_ids.items()
+              }
+              validate_applicability_masks(
+                  scores["baseline"],
+                  scores["structured_a"],
+                  scores["structured_b"],
+              )
+              selected = choose_best(scores["structured_a"], scores["structured_b"])
+              selections[case_id] = selected
+              total_cost += comparison.cost_usd or Decimal("0")
+              total_latency += comparison.latency_seconds
+              comparisons[case_id] = {
+                  "candidate_mapping": candidate_mapping,
+                  "evaluation": comparison.data,
+                  "selected": selected,
+                  "cost_usd": (
+                      str(comparison.cost_usd) if comparison.cost_usd is not None else None
+                  ),
+                  "latency_seconds": comparison.latency_seconds,
+              }
+              (output_root / f"{case_id}-evaluation.json").write_text(
+                  json.dumps(comparisons[case_id], indent=2) + "\n"
+              )
+
+              for strategy in ("baseline", "structured", "best_of_two"):
+                  row = dict(source_by_key[(case_id, strategy)])
+                  score_strategy = (
+                      "baseline"
+                      if strategy == "baseline"
+                      else "structured_a"
+                      if strategy == "structured"
+                      else selected
+                  )
+                  candidate_id = strategy_ids[score_strategy]
+                  row["candidate"] = score_strategy
+                  row["mean_auto_score"] = str(mean_score(scores[score_strategy]))
+                  row["auto_summary"] = summary_text(comparison.data, candidate_id)
+                  for dimension, score in scores[score_strategy].items():
+                      row[dimension] = str(score)
+                  if strategy == "best_of_two":
+                      selection_cost = comparison.cost_usd or Decimal("0")
+                      row["selection_cost_usd"] = str(selection_cost)
+                      row["selection_latency_seconds"] = str(
+                          comparison.latency_seconds
+                      )
+                      row["total_strategy_cost_usd"] = str(
+                          Decimal(row["generation_cost_usd"])
+                          + Decimal(row["attribute_extraction_cost_usd"])
+                          + selection_cost
+                      )
+                      row["total_strategy_latency_seconds"] = str(
+                          float(row["generation_latency_seconds"])
+                          + float(row["attribute_extraction_latency_seconds"])
+                          + comparison.latency_seconds
+                      )
+                  result_rows.append(row)
+
+          fieldnames = list(source_rows[0])
+          with (output_root / "slice-3-auto-results.csv").open("w", newline="") as handle:
+              writer = csv.DictWriter(handle, fieldnames=fieldnames)
+              writer.writeheader()
+              writer.writerows(result_rows)
+
+          strategy_scores: dict[str, list[float]] = {}
+          for row in result_rows:
+              strategy_scores.setdefault(row["strategy"], []).append(
+                  float(row["mean_auto_score"])
+              )
+          strategy_means = {
+              strategy: sum(values) / len(values)
+              for strategy, values in strategy_scores.items()
+          }
+          (output_root / "summary.json").write_text(
+              json.dumps(
+                  {
+                      "source_artifact_id": int(os.environ["SOURCE_ARTIFACT_ID"]),
+                      "comparison_requests": len(DEVELOPMENT_CASE_IDS),
+                      "image_requests": 0,
+                      "evaluator_model": DEFAULT_EVALUATOR_MODEL,
+                      "selections": selections,
+                      "strategy_means": strategy_means,
+                      "total_cost_usd": str(total_cost),
+                      "total_latency_seconds": total_latency,
+                  },
+                  indent=2,
+              )
+              + "\n"
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blinded-rescore-${{ github.run_id }}
+          path: outputs/blinded-rescore/
+          if-no-files-found: error
+          retention-days: 14
