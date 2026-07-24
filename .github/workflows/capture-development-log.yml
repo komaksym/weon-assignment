@@ -1,4 +1,4 @@
-name: Capture development log
+name: Capture evaluator log
 
 on:
   pull_request:
@@ -18,10 +18,10 @@ jobs:
       - name: Download sanitized log tail
         run: |
           set -euo pipefail
-          gh api repos/${{ github.repository }}/actions/jobs/89505692036/logs > full.log
-          tail -n 120 full.log > development-log-tail.txt
+          gh api repos/${{ github.repository }}/actions/jobs/89507186734/logs > full.log
+          tail -n 100 full.log > evaluator-log-tail.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: development-log-tail-${{ github.run_id }}
-          path: development-log-tail.txt
+          name: evaluator-log-tail-${{ github.run_id }}
+          path: evaluator-log-tail.txt
           retention-days: 1
