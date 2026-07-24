@@ -1,0 +1,79 @@
+name: Diagnose replacement evaluator once
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    if: ${{ github.head_ref == 'execute/slice-3-development-matrix' }}
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - uses: actions/download-artifact@v4
+        with:
+          name: development-matrix-30100695592
+          path: outputs/development
+          github-token: ${{ github.token }}
+          run-id: 30100695592
+      - run: uv run weon-prepare-inputs D01
+      - name: Compare D01 candidates with replacement evaluator
+        run: |
+          uv run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from weon_eval.evaluation import evaluation_schema
+          from weon_eval.vlm import request_json
+
+          root = Path("outputs/development/D01/google_gemini-3.1-flash-lite-image")
+          paths = (
+              Path("inputs/garments/shorts.png"),
+              next((root / "baseline").glob("image.*")),
+              next((root / "structured_a").glob("image.*")),
+              next((root / "structured_b").glob("image.*")),
+          )
+          result = request_json(
+              model="openai/gpt-4.1-mini",
+              prompt=(
+                  "Image order: garment packshot, baseline result, structured candidate A, "
+                  "structured candidate B. Score each result against the garment packshot on "
+                  "color, print/logo, silhouette/length, construction details, texture/material, "
+                  "and garment presence. Use 1 for preserved, 0.5 for partial, 0 for drifted, "
+                  "and -1 only when the source attribute is genuinely not applicable."
+              ),
+              image_paths=paths,
+              schema_name="garment_comparison",
+              schema=evaluation_schema(),
+              api_key=os.environ["OPENROUTER_API_KEY"],
+          )
+          Path("replacement-evaluator.json").write_text(
+              json.dumps(
+                  {
+                      "data": result.data,
+                      "cost_usd": str(result.cost_usd) if result.cost_usd is not None else None,
+                      "latency_seconds": result.latency_seconds,
+                  },
+                  indent=2,
+              )
+              + "\n"
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: replacement-evaluator-${{ github.run_id }}
+          path: replacement-evaluator.json
+          if-no-files-found: warn
+          retention-days: 1
