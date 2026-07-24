@@ -1,0 +1,113 @@
+name: Diagnostic Nano Banana Lite
+
+on:
+  push:
+    branches:
+      - diagnostics/nano-banana-lite-d01
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    if: github.event.head_commit.message == 'test: run Nano Banana Lite once'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - name: Guard secret
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}" || { echo "OPENROUTER_API_KEY is not configured" >&2; exit 2; }
+      - name: Run one lightweight image request
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic-output
+
+          prompt=$(cat <<'PROMPT'
+          Create a realistic fashion photoshoot using the supplied references in this order:
+          1. the person/model image,
+          2. the environment image,
+          3. the garment packshot image(s).
+
+          Dress the person in every supplied garment and place them naturally in the supplied environment.
+          Preserve the garment's visible color, print or logo, material, shape, length, seams, closures, and other distinctive details. Do not invent branding or redesign the garment.
+
+          Garment 1: shorts.png
+          PROMPT
+          )
+
+          jq -n \
+            --arg prompt "$prompt" \
+            --arg person "https://cdn-dev.weon.ai/i/generated/0c64b33b-b375-4b4d-b911-cb808dd03114.png" \
+            --arg environment "https://cdn-dev.weon.ai/i/generated/a81130b2-5f65-4157-aa8e-3cfca488b01d.png" \
+            --arg garment "https://storage.googleapis.com/weon-general-electric-icon-486910-f1/zcq/temp/case1_lower.jpg" \
+            '{
+              model: "google/gemini-3.1-flash-lite-image",
+              messages: [{
+                role: "user",
+                content: [
+                  {type: "text", text: $prompt},
+                  {type: "image_url", image_url: {url: $person}},
+                  {type: "image_url", image_url: {url: $environment}},
+                  {type: "image_url", image_url: {url: $garment}}
+                ]
+              }],
+              modalities: ["image", "text"]
+            }' > request.json
+
+          started=$(date +%s%3N)
+          status=$(curl --silent --show-error \
+            --connect-timeout 15 --max-time 120 \
+            -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+            -H "Content-Type: application/json" \
+            --data @request.json \
+            -o response.json \
+            -w '%{http_code}' \
+            https://openrouter.ai/api/v1/chat/completions)
+          ended=$(date +%s%3N)
+          latency_ms=$((ended - started))
+
+          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+            jq -r '.error.message // "OpenRouter returned HTTP '"$status"'"' response.json >&2
+            exit 1
+          fi
+
+          data_url=$(jq -r '.choices[0].message.images[0].image_url.url // empty' response.json)
+          if [[ -z "$data_url" ]]; then
+            jq '{model, usage, message: .choices[0].message}' response.json > diagnostic-output/no-image-response.json
+            echo "OpenRouter returned no image" >&2
+            exit 1
+          fi
+
+          media_type=${data_url%%;base64,*}
+          media_type=${media_type#data:}
+          encoded=${data_url#*,}
+          printf '%s' "$encoded" | base64 --decode > diagnostic-output/image.bin
+
+          extension=bin
+          case "$media_type" in
+            image/png) extension=png ;;
+            image/jpeg) extension=jpg ;;
+            image/webp) extension=webp ;;
+          esac
+          mv diagnostic-output/image.bin "diagnostic-output/image.$extension"
+
+          jq -n \
+            --arg model "google/gemini-3.1-flash-lite-image" \
+            --argjson latency_ms "$latency_ms" \
+            --arg media_type "$media_type" \
+            --arg text "$(jq -r '.choices[0].message.content // ""' response.json)" \
+            --argjson usage "$(jq '.usage // null' response.json)" \
+            '{model: $model, latency_ms: $latency_ms, media_type: $media_type, text: $text, usage: $usage}' \
+            > diagnostic-output/metadata.json
+
+          cat diagnostic-output/metadata.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nano-banana-lite-d01-${{ github.run_id }}
+          path: diagnostic-output/
+          if-no-files-found: error
+          retention-days: 2
