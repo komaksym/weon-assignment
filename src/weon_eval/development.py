@@ -201,13 +201,14 @@ def run_development(
         }
         candidate_mapping = blinded_candidate_mapping(case.id)
         strategy_ids = strategy_candidate_ids(candidate_mapping)
+        ordered_candidate_images = tuple(
+            candidate_images[candidate_mapping[candidate_id]]
+            for candidate_id in CANDIDATE_IDS
+        )
         evaluation = requester(
             model=evaluator_model,
             prompt=evaluation_prompt(),
-            image_paths=(
-                *case.garments,
-                *(candidate_images[candidate_mapping[candidate_id]] for candidate_id in CANDIDATE_IDS),
-            ),
+            image_paths=(*case.garments, *ordered_candidate_images),
             schema_name="garment_comparison",
             schema=evaluation_schema(),
             api_key=api_key,
