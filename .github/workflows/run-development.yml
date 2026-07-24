@@ -18,6 +18,20 @@ on:
         required: true
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      generator_model:
+        required: true
+        type: string
+      evaluator_model:
+        required: true
+        type: string
+      confirm_paid_run:
+        required: true
+        type: boolean
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
 
 permissions:
   contents: read
