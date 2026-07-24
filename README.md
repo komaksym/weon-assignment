@@ -9,10 +9,11 @@ The repository intentionally prioritizes generated evidence and evaluation over 
 ```mermaid
 flowchart LR
     A[cases.json + asset sources] --> B[Prepare selected inputs]
-    B --> C[Prompt]
-    C --> D[OpenRouter Images API]
-    D --> E[image.png + metadata.json]
-    E --> F[Evaluation and report]
+    B --> C[Compact references to max 1024px JPEG]
+    C --> D[Render prompt]
+    D --> E[OpenRouter Images API]
+    E --> F[image + metadata]
+    F --> G[Evaluation and report]
 ```
 
 ## Setup
@@ -50,14 +51,26 @@ Prepare only the selected development case from the assignment-provided source m
 uv run weon-prepare-inputs D01
 ```
 
+The downloaded originals remain unchanged. During generation, each reference is rotated according to EXIF metadata, resized in memory to a maximum dimension of 1024 pixels, converted to JPEG quality 85, and recorded in run metadata.
+
 Set `OPENROUTER_API_KEY` in your shell or load it from `.env` before running the generation command. The CLI does not read or print the key.
 
 ## Run one baseline locally
+
+The default generator is Nano Banana 2 Lite:
 
 ```bash
 export OPENROUTER_API_KEY="..."
 uv run weon-eval D01
 ```
+
+Equivalent explicit command:
+
+```bash
+uv run weon-eval D01 --model google/gemini-3.1-flash-lite-image
+```
+
+The baseline requests one candidate at `1K` and `3:4` through OpenRouter's unified Images API.
 
 ## Run one paid experiment in GitHub Actions
 
@@ -65,7 +78,7 @@ The permanent **Run paid experiment** workflow is manual and separate from norma
 
 1. Open **Actions → Run paid experiment → Run workflow**.
 2. Choose `D01`, `D02`, or `D03`.
-3. Enter the OpenRouter model slug.
+3. Keep or replace the OpenRouter image-model slug.
 4. Enable **Confirm that this workflow may spend API credit**.
 5. Start the workflow and download the `experiment-<case>-<run-id>` artifact.
 
@@ -81,11 +94,11 @@ The result is written to:
 
 ```text
 outputs/<case>/<model>/<strategy>/
-├── image.png
+├── image.<jpg|png|webp>
 └── metadata.json
 ```
 
-Metadata records the prompt, references, model, baseline strategy, API-reported cost, and measured request latency. Existing output directories are not overwritten. Inspect an existing result before deciding whether another paid request is justified.
+The generated extension follows the API response. Metadata records the prompt, experiment configuration, output media type, model, baseline strategy, API-reported cost, measured request latency, and original/prepared dimensions and byte sizes for every ordered reference. Existing output directories are not overwritten.
 
 ## Validation
 
