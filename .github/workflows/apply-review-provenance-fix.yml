@@ -28,6 +28,8 @@ jobs:
           rm .github/workflows/run-review-provenance-fix.yml
       - name: Sync dependencies
         run: uv sync --dev
+      - name: Apply safe Ruff fixes
+        run: uv run ruff check . --fix
       - name: Ruff
         run: uv run ruff check .
       - name: Strict mypy
