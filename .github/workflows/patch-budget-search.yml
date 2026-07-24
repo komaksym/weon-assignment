@@ -1,0 +1,137 @@
+name: Apply budget search accounting fixes
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.head_ref == 'experiment/budgeted-method-search' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Patch exact accounting boundaries
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/weon_eval/budget_search.py")
+          text = path.read_text()
+
+          def replace(old: str, new: str) -> None:
+              global text
+              if old not in text:
+                  raise SystemExit(f"missing expected text: {old!r}")
+              text = text.replace(old, new)
+
+          replace(
+              "from weon_eval.prompts import ATTRIBUTE_DIMENSIONS, render_prompt\n",
+              "from weon_eval.prompts import ATTRIBUTE_DIMENSIONS, render_prompt\n"
+              "from weon_eval.reporting import float_value\n",
+          )
+          replace(
+              '''@dataclass(frozen=True)\nclass GenerationEvidence:\n    """One successful generation call and its balance snapshots."""\n\n    image_path: Path\n    cost_usd: Decimal\n    latency_seconds: float\n    balance_before_usd: Decimal\n    balance_after_usd: Decimal\n\n\nclass FloorReached(RuntimeError):\n''',
+              '''@dataclass(frozen=True)\nclass GenerationEvidence:\n    """One successful generation call and its balance snapshots."""\n\n    image_path: Path\n    cost_usd: Decimal\n    latency_seconds: float\n    balance_before_usd: Decimal\n    balance_after_usd: Decimal\n\n\n@dataclass\nclass PaidRequestCounter:\n    """Count every attempted paid network call, including failures."""\n\n    count: int = 0\n\n    def consume(self, maximum: int) -> None:\n        if self.count >= maximum:\n            raise RequestCapReached("paid request cap reached")\n        self.count += 1\n\n\nclass RequestCapReached(RuntimeError):\n    """Raised when the next paid call would exceed the request cap."""\n\n\nclass FloorReached(RuntimeError):\n''',
+          )
+          replace(
+              '''    allowance_getter: AllowanceGetter,\n    clock: Clock,\n) -> GenerationEvidence:\n''',
+              '''    allowance_getter: AllowanceGetter,\n    request_counter: PaidRequestCounter,\n    max_paid_requests: int,\n    clock: Clock,\n) -> GenerationEvidence:\n''',
+          )
+          replace(
+              '''    started_at = clock()\n    result = generator(payload, api_key)\n''',
+              '''    request_counter.consume(max_paid_requests)\n    started_at = clock()\n    result = generator(payload, api_key)\n''',
+          )
+          replace(
+              '''    allowance_getter: AllowanceGetter,\n    clock: Clock,\n) -> tuple[dict[str, object], int]:\n''',
+              '''    allowance_getter: AllowanceGetter,\n    request_counter: PaidRequestCounter,\n    max_paid_requests: int,\n    clock: Clock,\n) -> dict[str, object]:\n''',
+          )
+          replace(
+              '''        allowance_getter=allowance_getter,\n        clock=clock,\n    )\n    generations.append(first)\n    final_image = first.image_path\n    paid_requests = 1\n''',
+              '''        allowance_getter=allowance_getter,\n        request_counter=request_counter,\n        max_paid_requests=max_paid_requests,\n        clock=clock,\n    )\n    generations.append(first)\n    final_image = first.image_path\n''',
+          )
+          replace(
+              '''            allowance_getter=allowance_getter,\n            clock=clock,\n        )\n        generations.append(second)\n        final_image = second.image_path\n        paid_requests += 1\n''',
+              '''            allowance_getter=allowance_getter,\n            request_counter=request_counter,\n            max_paid_requests=max_paid_requests,\n            clock=clock,\n        )\n        generations.append(second)\n        final_image = second.image_path\n''',
+          )
+          replace(
+              '''    raw_evaluation = case_root / "evaluation.json"\n    score = score_candidate(\n''',
+              '''    raw_evaluation = case_root / "evaluation.json"\n    request_counter.consume(max_paid_requests)\n    score = score_candidate(\n''',
+          )
+          replace("    paid_requests += 1\n    evaluation_after", "    evaluation_after")
+          replace("    return row, paid_requests\n", "    return row\n")
+          replace(
+              '''            values = [float(row[dimension]) for row in method_rows if float(row[dimension]) >= 0]\n''',
+              '''            values = [\n                float_value(row[dimension])\n                for row in method_rows\n                if float_value(row[dimension]) >= 0\n            ]\n''',
+          )
+          replace(
+              '''        total_latency = sum(float(row["total_latency_seconds"]) for row in method_rows)\n''',
+              '''        total_latency = sum(\n            float_value(row["total_latency_seconds"]) for row in method_rows\n        )\n''',
+          )
+          replace(
+              '''            "mean_auto_score": _mean([float(row["mean_auto_score"]) for row in method_rows]),\n''',
+              '''            "mean_auto_score": _mean(\n                [float_value(row["mean_auto_score"]) for row in method_rows]\n            ),\n''',
+          )
+          replace(
+              '''            -float(row["mean_auto_score"]),\n            -float(row["identity_detail_mean"]),\n            Decimal(str(row["average_cost_usd"])),\n            float(row["average_latency_seconds"]),\n''',
+              '''            -float_value(row["mean_auto_score"]),\n            -float_value(row["identity_detail_mean"]),\n            Decimal(str(row["average_cost_usd"])),\n            float_value(row["average_latency_seconds"]),\n''',
+          )
+          replace(
+              '''    paid_requests = 0\n    replicate = 1\n''',
+              '''    request_counter = PaidRequestCounter()\n    replicate = 1\n''',
+          )
+          replace("    while paid_requests < max_paid_requests:\n", "    while request_counter.count < max_paid_requests:\n")
+          replace(
+              '''            if current.remaining_usd <= floor_usd + NEAR_FLOOR_WINDOW_USD and method.name != "lite_direct":\n''',
+              '''            near_floor = current.remaining_usd <= floor_usd + NEAR_FLOOR_WINDOW_USD\n            if near_floor and method.name != "lite_direct":\n''',
+          )
+          replace(
+              '''            combined_reserve = method.generation_reserve_usd * method.passes + EVALUATION_RESERVE_USD\n''',
+              '''            combined_reserve = (\n                method.generation_reserve_usd * method.passes\n                + EVALUATION_RESERVE_USD\n            )\n''',
+          )
+          replace("            if paid_requests + required_requests > max_paid_requests:\n", "            if request_counter.count + required_requests > max_paid_requests:\n")
+          replace("                if paid_requests + required_requests > max_paid_requests:\n", "                if request_counter.count + required_requests > max_paid_requests:\n")
+          replace(
+              '''                    row, request_count = _run_method_case(\n''',
+              '''                    row = _run_method_case(\n''',
+          )
+          replace(
+              '''                        allowance_getter=allowance_getter,\n                        clock=clock,\n                    )\n''',
+              '''                        allowance_getter=allowance_getter,\n                        request_counter=request_counter,\n                        max_paid_requests=max_paid_requests,\n                        clock=clock,\n                    )\n''',
+          )
+          replace(
+              '''                except FloorReached:\n                    stop_reason = "floor_guard"\n                    continue\n''',
+              '''                except FloorReached:\n                    stop_reason = "floor_guard"\n                    continue\n                except RequestCapReached:\n                    stop_reason = "request_cap"\n                    break\n''',
+          )
+          replace("                paid_requests += request_count\n                rows.append(row)\n", "                rows.append(row)\n")
+          replace("            if stop_reason == \"request_cap\" and paid_requests >= max_paid_requests:\n", "            if stop_reason == \"request_cap\" and request_counter.count >= max_paid_requests:\n")
+          replace('                "paid_requests": paid_requests,\n', '                "paid_requests": request_counter.count,\n')
+
+          path.write_text(text)
+          PY
+          rm -f .github/workflows/diagnose-budget-search.yml
+          rm -f .github/workflows/patch-budget-search.yml
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - run: uv run ruff check . --fix
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Commit verified patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: account for every paid request" -m "Count paid attempts before generation and evaluator network calls, including failures. Enforce the request cap at the call boundary, preserve the existing allowance floor, fix strict typing, and remove temporary diagnostic machinery."
+          git push origin HEAD:${{ github.head_ref }}
