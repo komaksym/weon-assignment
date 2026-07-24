@@ -9,19 +9,21 @@ The repository compares a direct baseline with structured garment prompting and 
 The direct baseline was selected:
 
 - development blinded automatic mean: `0.8889` for every strategy;
-- development manual mean: baseline `0.6833`, structured `0.6500`, best-of-two `0.6500`;
+- development ChatGPT visual-assessment mean: baseline `0.6833`, structured `0.6500`, best-of-two `0.6500`;
 - holdout automatic scoring: H01 invalid under the frozen applicability mask; H02 `1.0000`; no two-case automatic mean is reported;
-- holdout manual mean: `0.6667`;
+- holdout ChatGPT visual-assessment mean: `0.6667`;
 - holdout generation cost: `$0.06940025` for two images;
 - holdout generation latency: `13.1647 s` total.
 
-Broad color, garment presence, and coarse silhouette were generally preserved. Logos, exact construction, and material details remained unreliable. The H01 evaluator also attempted to remove shoe silhouette from the denominator, confirming that rough VLM scores require applicability validation and human audit.
+The visual-assessment scores were assigned by ChatGPT from the contact sheets. No independent human evaluator participated, so these scores are supplemental AI-generated evidence rather than human validation.
+
+Broad color, garment presence, and coarse silhouette were generally preserved. Logos, exact construction, and material details remained unreliable. The H01 evaluator also attempted to remove shoe silhouette from the denominator, confirming that rough VLM scores require applicability validation and a separate review path.
 
 ```mermaid
 flowchart LR
     A[Assignment references] --> B[Validated compact inputs]
     B --> C[D01-D03 strategy comparison]
-    C --> D[Blinded VLM + human review]
+    C --> D[Blinded VLM + ChatGPT visual assessment]
     D --> E[Freeze direct baseline]
     E --> F[One H01-H02 run]
     F --> G[Rubric validation + report + detail crops]
@@ -96,6 +98,8 @@ uv run weon-holdout
 ```
 
 This command uses the committed baseline configuration and makes exactly two generation requests and two rough evaluator requests. It exposes no strategy-selection option, performs no retries or resampling, and does not access D01-D03. Raw evaluator JSON is persisted before aggregation, and the frozen source-applicability mask rejects invalid `-1` values rather than silently changing a score denominator.
+
+The development and holdout commands emit reviewer-neutral `review_scores.csv` templates. The committed filled assessments are explicitly named `*-chatgpt-visual-scores.csv`.
 
 Each holdout contact sheet contains the packshot, full generated result, and a deterministic garment-region detail crop. The normalized and pixel crop coordinates are stored in `submission/figures/crop-metadata.json`; these crops affect presentation only, not generation or scoring.
 

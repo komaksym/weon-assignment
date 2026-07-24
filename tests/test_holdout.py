@@ -113,6 +113,12 @@ def test_run_holdouts_executes_only_two_frozen_cases(tmp_path: Path) -> None:
 
     rows = list(csv.DictReader((output_root / "results.csv").open()))
     assert [row["case_id"] for row in rows] == ["H01", "H02"]
+    review_rows = list(csv.DictReader((output_root / "review_scores.csv").open()))
+    assert [row["case_id"] for row in review_rows] == ["H01", "H02"]
+    assert all(row["reviewer"] == "" for row in review_rows)
+    assert all(row["review_method"] == "" for row in review_rows)
+    assert all(row["mean_review_score"] == "" for row in review_rows)
+    assert not (output_root / "manual_scores.csv").exists()
     assert all(row["strategy"] == "baseline" for row in rows)
     assert all(row["mean_auto_score"] == "0.5" for row in rows)
     assert all(row["total_experiment_cost_usd"] == "0.032" for row in rows)

@@ -7,11 +7,13 @@ The task is to compose a person, an environment, and a garment packshot while pr
 1. **Structured garment prompting:** a VLM extracts visible garment attributes and injects them as hard constraints.
 2. **Best-of-two selection:** generate two structured candidates and use a VLM to select the stronger one.
 
-The direct baseline was ultimately the best operational choice. On three development cases, a blinded VLM comparison tied all strategies at `0.8889`; manual means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Best-of-two cost roughly twice as much and was about ten times slower than baseline. The frozen baseline was therefore applied once to two holdouts without tuning or resampling.
+The direct baseline was ultimately the best operational choice. On three development cases, a blinded VLM comparison tied all strategies at `0.8889`; ChatGPT visual-assessment means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Best-of-two cost roughly twice as much and was about ten times slower than baseline. The frozen baseline was therefore applied once to two holdouts without tuning or resampling.
 
-The H01 automatic result is not reported as a score because the evaluator incorrectly marked shoe silhouette as not applicable, violating the frozen source-level rubric and changing the denominator. H02 received a valid automatic score of `1.0000`; manual scores were H01 `0.5833` and H02 `0.7500`. The valid evidence still shows the central limitation: broad color, garment presence, and coarse silhouette are preserved reasonably well, while logos, exact construction, and material details remain unreliable and are often overestimated by a VLM judge.
+The H01 automatic result is not reported as a score because the evaluator incorrectly marked shoe silhouette as not applicable, violating the frozen source-level rubric and changing the denominator. H02 received a valid automatic score of `1.0000`; ChatGPT visual-assessment scores were H01 `0.5833` and H02 `0.7500`. The valid evidence still shows the central limitation: broad color, garment presence, and coarse silhouette are preserved reasonably well, while logos, exact construction, and material details remain unreliable and are often overestimated by a VLM judge.
 
 ![Development comparison](submission/figures/development-comparison.jpg)
+
+**Reviewer provenance:** the second visual-assessment path was performed by ChatGPT from the committed contact sheets. No independent human reviewer participated. These scores are therefore an AI-generated qualitative cross-check, not human validation.
 
 ## Failure-mode analysis
 
@@ -23,7 +25,7 @@ The observed failures form a compact taxonomy:
 - **Color drift:** lighting can shift dark green toward brown/olive even when color is explicitly constrained.
 - **Evaluator overconfidence:** the VLM often rewards coarse visual similarity while missing absent branding and incorrect geometry.
 - **Applicability errors:** the evaluator may use `-1` to remove a difficult but applicable dimension from the denominator.
-- **Selection unreliability:** best-of-two tied frequently and selected candidate A deterministically; on D03, the human reviewer preferred B.
+- **Selection unreliability:** best-of-two tied frequently and selected candidate A deterministically; on D03, the ChatGPT visual assessment preferred B.
 
 These failures matter because garment identity is not just category recognition. A plausible pair of brown shoes is not necessarily the referenced product.
 
@@ -40,17 +42,17 @@ Each candidate was scored on six dimensions using `1 / 0.5 / 0 / -1`:
 - texture/material;
 - garment presence.
 
-`-1` means genuinely not applicable in the source and is excluded from the mean. Comparative evaluation uses opaque candidate IDs with a deterministic case-specific permutation, so the judge cannot infer which output is baseline or an attempted improvement. The frozen holdout path additionally validates evaluator `-1` values against a predeclared source-applicability mask before calculating any mean. Raw evaluator JSON is persisted before validation. A manual sanity check uses the same six dimensions.
+`-1` means genuinely not applicable in the source and is excluded from the mean. Comparative evaluation uses opaque candidate IDs with a deterministic case-specific permutation, so the judge cannot infer which output is baseline or an attempted improvement. The frozen holdout path additionally validates evaluator `-1` values against a predeclared source-applicability mask before calculating any mean. Raw evaluator JSON is persisted before validation. A separate ChatGPT visual assessment uses the same six dimensions. It is a distinct AI judgment path, not an independent human evaluation.
 
 ## Development results
 
-| Strategy | Blinded automatic mean | Manual mean | Average method cost | Average method latency |
+| Strategy | Blinded automatic mean | ChatGPT visual-assessment mean | Average method cost | Average method latency |
 | --- | ---: | ---: | ---: | ---: |
 | Baseline | **0.8889** | **0.6833** | **$0.034466** | **5.48 s** |
 | Structured | **0.8889** | 0.6500 | $0.035331 | 8.16 s |
 | Best of two | **0.8889** | 0.6500 | $0.072624 | 54.89 s |
 
-Structured prompting did not produce a consistent fidelity gain. Best-of-two added a second generation and a comparison call but did not improve the manual aggregate. The baseline was frozen because it was simplest, cheapest, fastest, and manually strongest.
+Structured prompting did not produce a consistent fidelity gain. Best-of-two added a second generation and a comparison call but did not improve the ChatGPT visual-assessment aggregate. The baseline was frozen primarily because the blinded automatic comparison tied while baseline was simplest, cheapest, and fastest. Its small lead in the ChatGPT visual assessment was treated only as supplemental evidence.
 
 ## Frozen holdout results
 
@@ -58,11 +60,11 @@ Structured prompting did not produce a consistent fidelity gain. Best-of-two add
 
 ![H02 shorts holdout](submission/figures/H02-contact-sheet.jpg)
 
-| Case | Automatic | Manual | Generation cost | Total experiment latency |
+| Case | Automatic | ChatGPT visual assessment | Generation cost | Total experiment latency |
 | --- | ---: | ---: | ---: | ---: |
 | H01 sneakers | **invalid — source N/A violation** | 0.5833 | $0.034466 | 8.43 s |
 | H02 shorts | 1.0000 | 0.7500 | $0.034934 | 10.25 s |
-| Manual mean | — | **0.6667** | $0.034700 | 9.34 s |
+| ChatGPT visual-assessment mean | — | **0.6667** | $0.034700 | 9.34 s |
 
 No two-case automatic mean is reported. The raw H01 evaluator response assigned `silhouette_length = -1`, claiming shoe shape was not applicable. The frozen source mask requires all six dimensions for both holdouts, so this result is retained for audit but rejected for aggregation.
 
@@ -82,4 +84,4 @@ With more time, I would prioritize:
 4. targeted inpainting only on failed garment regions rather than full-image regeneration;
 5. a larger, stratified set covering text-heavy products, patterned garments, layered outfits, and small accessories.
 
-The main methodological lesson is that automatic evaluation must be blinded, applicability-validated, and audited against human judgment. In this experiment, the VLM was useful for orchestration and rough diagnostics, but not trustworthy as the sole measure of product fidelity.
+The main methodological lesson is that automatic evaluation must be blinded, applicability-validated, and audited through a separate review path. This experiment still lacks independent human evaluation, which remains a key limitation before production conclusions are drawn. In this experiment, the VLM was useful for orchestration and rough diagnostics, but not trustworthy as the sole measure of product fidelity.

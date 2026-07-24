@@ -1,0 +1,10 @@
+case_id,strategy,reviewer,review_method,color,print_logo,silhouette_length,construction_details,texture_material,presence,mean_review_score,selector_agrees,notes
+D01,baseline,ChatGPT,visual assessment of contact sheet,0.5,0,1,0.5,0.5,1,0.5833333333333334,n/a,"Color is darker; logo is absent; two-button closure, loops and zipper-like pockets are only approximate."
+D01,structured,ChatGPT,visual assessment of contact sheet,0.5,0,1,0.5,0.5,1,0.5833333333333334,n/a,No clear improvement over baseline; color and construction still drift and branding is absent.
+D01,best_of_two,ChatGPT,visual assessment of contact sheet,0.5,0,1,0.5,0.5,1,0.5833333333333334,tie—A acceptable,A and B are visually near-ties; selecting A is reasonable but produces no measurable gain.
+D02,baseline,ChatGPT,visual assessment of contact sheet,1,0,1,0.5,0.5,1,0.6666666666666666,n/a,"Brown/tan low-top form is preserved, but ARIGATO branding is absent and panel/material fidelity is approximate."
+D02,structured,ChatGPT,visual assessment of contact sheet,1,0,1,0.5,0.5,1,0.6666666666666666,n/a,Structured A is similar to baseline; no readable branding and only partial overlay/material fidelity.
+D02,best_of_two,ChatGPT,visual assessment of contact sheet,1,0,1,0.5,0.5,1,0.6666666666666666,tie—A acceptable,"A and B are close; A is acceptable, but the automatic perfect score clearly overstates fidelity."
+D03,baseline,ChatGPT,visual assessment of contact sheet,1,-1,1,0.5,0.5,1,0.8,n/a,"Color, collar contrast and length are strong; pockets, concealed closure and waxed texture are approximate. No source logo is visible, so logo is N/A."
+D03,structured,ChatGPT,visual assessment of contact sheet,0.5,-1,1,0.5,0.5,1,0.7,n/a,Sunlight shifts A toward brown/olive; construction and material remain only partial.
+D03,best_of_two,ChatGPT,visual assessment of contact sheet,0.5,-1,1,0.5,0.5,1,0.7,no—B looked closer,"The selector chose A on an automatic tie, but B better preserves the dark-green color and collar contrast."

@@ -183,13 +183,17 @@ def write_csv(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
         writer.writerows(rows)
 
 
-def manual_rows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
+def review_rows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
+    """Create a reviewer-attributed visual-assessment scaffold."""
+
     return [
         {
             "case_id": row["case_id"],
             "strategy": row["strategy"],
+            "reviewer": "",
+            "review_method": "",
             **{dimension: "" for dimension in ATTRIBUTE_DIMENSIONS},
-            "mean_manual_score": "",
+            "mean_review_score": "",
             "selector_agrees": "" if row["strategy"] == "best_of_two" else "n/a",
             "notes": "",
         }
