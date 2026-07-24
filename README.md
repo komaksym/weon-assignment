@@ -87,6 +87,24 @@ The fixed matrix makes nine image requests and six VLM requests with no retries 
 
 Comparative scoring uses opaque candidate IDs and a deterministic case-specific permutation. The six dimensions are color, print/logo, silhouette/length, construction details, texture/material, and garment presence, scored as `1`, `0.5`, `0`, or `-1` when genuinely not applicable.
 
+## Run the balance-guarded method search
+
+Prepare D01–D03, then run the predeclared search:
+
+```bash
+for case_id in D01 D02 D03; do
+  uv run weon-prepare-inputs "$case_id"
+done
+
+uv run weon-budget-search --floor-usd 10.00 --max-paid-requests 600
+```
+
+The evaluator contract is frozen before execution: `openai/gpt-4.1-mini`, one opaque candidate, the same six dimensions, and fixed source-level applicability masks. Every final candidate contributes to its method aggregate; the evaluator does not select which samples count. H01 and H02 are inaccessible to this command.
+
+The predeclared queue tests direct generation, identity-priority prompting, deterministic garment-detail boards, fixed two-pass repair, and several image models. Before every generation or evaluator call, the runner reads the key-specific allowance and checks a conservative reserve against the hard `$10.00` floor. Every attempted paid network call is counted, including provider failures. Near the floor, only the previously measured low-cost direct Nano Banana 2 Lite method remains eligible.
+
+Outputs include `results.csv`, `method_summary.csv`, `search_summary.json`, `failures.json`, `skips.json`, reviewer-neutral `review_scores.csv`, and the generated images/metadata in the temporary workflow artifact. The evaluator prompt, schema, masks, and ranking rules must not be changed after results are observed.
+
 ## Reproduce the frozen holdouts
 
 The explicit override is restricted to the final fixed evaluation:
@@ -109,7 +127,8 @@ Permanent paid workflows are manual/reusable and separate from normal CI:
 
 - **Run paid experiment** — one D01-D03 baseline call;
 - **Run development matrix** — the development comparison;
-- **Run frozen holdouts** — the fixed H01-H02 evaluation.
+- **Run frozen holdouts** — the fixed H01-H02 evaluation;
+- **Run budgeted method search** — the frozen-evaluation D01-D03 search with a hard `$10.00` allowance floor.
 
 Every paid workflow runs dependency sync, Ruff, strict mypy, tests, and build before spending. Artifacts are retained for 14 days. Ordinary pushes and pull requests never trigger paid requests.
 
