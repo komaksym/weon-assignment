@@ -1,0 +1,13 @@
+{
+  "assets": {
+    "inputs/models/black-bodysuit-woman.png": "https://cdn-dev.weon.ai/i/generated/0c64b33b-b375-4b4d-b911-cb808dd03114.png",
+    "inputs/models/cream-sweater-woman.png": "https://cdn-dev.weon.ai/i/generated/739fce5f-1687-4d86-ac88-ac800c2d9dff.png",
+    "inputs/models/white-tee-man.png": "https://cdn-dev.weon.ai/i/generated/024b3cfc-9006-4caf-80d1-c7326de4315f.png",
+    "inputs/environments/street.png": "https://cdn-dev.weon.ai/i/generated/a81130b2-5f65-4157-aa8e-3cfca488b01d.png",
+    "inputs/environments/forest.png": "https://cdn-dev.weon.ai/i/generated/fd08a59c-d834-45b1-9a7d-846f06b05774.png",
+    "inputs/environments/meadow.png": "https://cdn-dev.weon.ai/i/generated/59802fdc-fce1-4c27-8376-6ec10df1f866.png",
+    "inputs/garments/shorts.png": "https://storage.googleapis.com/weon-general-electric-icon-486910-f1/zcq/temp/case1_lower.jpg",
+    "inputs/garments/sneakers.jpg": "https://media.occtoo.com/a5fb66f4-a21f-4b8f-97f8-f0c65eaef780/b01859e2-bb4d-57e6-8443-6fb4c8113e3c/F4510001_CATEGORY.jpg",
+    "inputs/garments/coat.png": "https://cdn-dev.weon.ai/i/uploads/a084d197-996e-4858-b2be-54d382f1629c/30078ada-5a81-4099-869a-b278934dfaa0.jpg"
+  }
+}
