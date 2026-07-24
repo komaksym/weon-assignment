@@ -1,0 +1,50 @@
+name: Check budget search balance once
+
+on:
+  pull_request:
+    branches: [experiment/budgeted-method-search]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: ${{ github.head_ref == 'observe/budget-search-balance' }}
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Read key allowance
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from decimal import Decimal
+          from pathlib import Path
+
+          import httpx
+
+          response = httpx.get(
+              "https://openrouter.ai/api/v1/key",
+              headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
+              timeout=30,
+          )
+          response.raise_for_status()
+          data = response.json()["data"]
+          if data.get("limit_remaining") is not None:
+              remaining = Decimal(str(data["limit_remaining"]))
+          else:
+              remaining = Decimal(str(data["limit"])) - Decimal(str(data["usage"]))
+          payload = {"remaining_allowance_usd": str(remaining)}
+          Path("balance.json").write_text(json.dumps(payload, indent=2) + "\n")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
+              handle.write(f"## OpenRouter key allowance\n- Remaining: `${remaining}`\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: budget-balance-${{ github.run_id }}
+          path: balance.json
+          retention-days: 1
