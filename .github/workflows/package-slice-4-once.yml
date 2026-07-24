@@ -1,0 +1,130 @@
+name: Package slice 4 once
+
+on:
+  pull_request:
+    branches:
+      - feature/slice-4-holdout-submission
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/slice-4-holdout-submission
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - name: Download existing experiment artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dev /tmp/holdout
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/8600095070/zip" > /tmp/dev.zip
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/8604496953/zip" > /tmp/holdout.zip
+          unzip -q /tmp/dev.zip -d /tmp/dev
+          unzip -q /tmp/holdout.zip -d /tmp/holdout
+      - name: Generate compressed submission figures
+        run: |
+          set -euo pipefail
+          mkdir -p submission/figures
+          uv run python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          output = Path("submission/figures")
+
+          development = []
+          for case_id in ("D01", "D02", "D03"):
+              with Image.open(Path("/tmp/dev") / case_id / "contact_sheet.jpg") as source:
+                  image = source.convert("RGB")
+                  height = round(image.height * 600 / image.width)
+                  development.append(image.resize((600, height), Image.Resampling.LANCZOS))
+          gap = 10
+          canvas = Image.new(
+              "RGB",
+              (600, sum(image.height for image in development) + gap * 2),
+              "white",
+          )
+          y = 0
+          for image in development:
+              canvas.paste(image, (0, y))
+              y += image.height + gap
+          canvas.save(
+              output / "development-comparison.jpg",
+              format="JPEG",
+              quality=50,
+              optimize=True,
+              progressive=True,
+          )
+
+          for case_id in ("H01", "H02"):
+              with Image.open(Path("/tmp/holdout") / case_id / "contact_sheet.jpg") as source:
+                  image = source.convert("RGB")
+                  height = round(image.height * 500 / image.width)
+                  image = image.resize((500, height), Image.Resampling.LANCZOS)
+                  image.save(
+                      output / f"{case_id}-contact-sheet.jpg",
+                      format="JPEG",
+                      quality=52,
+                      optimize=True,
+                      progressive=True,
+                  )
+          PY
+      - name: Rebuild three-commit history
+        run: |
+          set -euo pipefail
+          files=(
+            .github/workflows/run-holdout.yml
+            PLANS.md
+            README.md
+            REPORT.md
+            experiments/slice-4-holdout-manual.csv
+            experiments/slice-4-holdout-results.csv
+            experiments/slice-4-holdout.md
+            pyproject.toml
+            specs/slice-4-holdout-submission.md
+            src/weon_eval/holdout.py
+            src/weon_eval/holdout_cli.py
+            tests/test_holdout.py
+            submission/figures/development-comparison.jpg
+            submission/figures/H01-contact-sheet.jpg
+            submission/figures/H02-contact-sheet.jpg
+          )
+          tar -cf /tmp/slice4.tar "${files[@]}"
+          git fetch origin main
+          git switch -C slice-4-clean origin/main
+
+          tar -xf /tmp/slice4.tar specs/slice-4-holdout-submission.md
+          git add specs/slice-4-holdout-submission.md
+          git commit -m "docs: define final holdout slice" -m "Freeze the baseline configuration, constrain execution to H01 and H02, and define the final evidence and submission package without holdout-driven tuning."
+
+          tar -xf /tmp/slice4.tar \
+            .github/workflows/run-holdout.yml \
+            pyproject.toml \
+            src/weon_eval/holdout.py \
+            src/weon_eval/holdout_cli.py \
+            tests/test_holdout.py
+          git add .github/workflows/run-holdout.yml pyproject.toml src/weon_eval/holdout.py src/weon_eval/holdout_cli.py tests/test_holdout.py
+          git commit -m "feat: run frozen holdout evaluation" -m "Add a guarded two-case baseline runner, opaque single-candidate scoring, compact metadata and contact sheets, focused regression coverage, and a manual/reusable paid workflow with free validation before spending."
+
+          tar -xf /tmp/slice4.tar \
+            PLANS.md README.md REPORT.md \
+            experiments/slice-4-holdout-manual.csv \
+            experiments/slice-4-holdout-results.csv \
+            experiments/slice-4-holdout.md \
+            submission/figures/development-comparison.jpg \
+            submission/figures/H01-contact-sheet.jpg \
+            submission/figures/H02-contact-sheet.jpg
+          git add PLANS.md README.md REPORT.md experiments submission/figures
+          git commit -m "docs: package final submission" -m "Record the one frozen H01-H02 run, manual sanity check, costs, failure taxonomy, compressed comparison figures, final report, reproduction guide, and completed four-slice roadmap."
+
+          git push --force origin HEAD:feature/slice-4-holdout-submission
