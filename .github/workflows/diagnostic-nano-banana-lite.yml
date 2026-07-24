@@ -2,7 +2,7 @@ name: Diagnostic Nano Banana Lite
 
 on:
   pull_request:
-    types: [opened]
+    types: [ready_for_review]
 
 permissions:
   contents: read
@@ -10,6 +10,7 @@ permissions:
 jobs:
   run:
     if: >-
+      github.event.pull_request.number == 3 &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'diagnostics/nano-banana-lite-d01'
     runs-on: ubuntu-latest
@@ -21,11 +22,54 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${OPENROUTER_API_KEY:-}" || { echo "OPENROUTER_API_KEY is not configured" >&2; exit 2; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prepare compact references
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic-input diagnostic-output
+          python -m pip install --quiet pillow
+          curl --silent --show-error --fail --location \
+            https://cdn-dev.weon.ai/i/generated/0c64b33b-b375-4b4d-b911-cb808dd03114.png \
+            -o diagnostic-input/person-original.png
+          curl --silent --show-error --fail --location \
+            https://cdn-dev.weon.ai/i/generated/a81130b2-5f65-4157-aa8e-3cfca488b01d.png \
+            -o diagnostic-input/environment-original.png
+          curl --silent --show-error --fail --location \
+            https://storage.googleapis.com/weon-general-electric-icon-486910-f1/zcq/temp/case1_lower.jpg \
+            -o diagnostic-input/garment-original.png
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import json
+
+          records = []
+          for role in ("person", "environment", "garment"):
+              source = Path(f"diagnostic-input/{role}-original.png")
+              target = Path(f"diagnostic-input/{role}.jpg")
+              with Image.open(source) as image:
+                  original_size = image.size
+                  image.thumbnail((1024, 1024))
+                  if image.mode != "RGB":
+                      background = Image.new("RGB", image.size, "white")
+                      if "A" in image.getbands():
+                          background.paste(image, mask=image.getchannel("A"))
+                      else:
+                          background.paste(image)
+                      image = background
+                  image.save(target, "JPEG", quality=85, optimize=True)
+                  records.append({
+                      "role": role,
+                      "original_dimensions": original_size,
+                      "resized_dimensions": image.size,
+                      "bytes": target.stat().st_size,
+                  })
+          Path("diagnostic-output/input-sizes.json").write_text(json.dumps(records, indent=2))
+          PY
       - name: Run one lightweight image request
         run: |
           set -euo pipefail
-          mkdir -p diagnostic-output
-
           prompt=$(cat <<'PROMPT'
           Create a realistic fashion photoshoot using the supplied references in this order:
           1. the person/model image,
@@ -39,11 +83,15 @@ jobs:
           PROMPT
           )
 
+          person=$(base64 -w0 diagnostic-input/person.jpg)
+          environment=$(base64 -w0 diagnostic-input/environment.jpg)
+          garment=$(base64 -w0 diagnostic-input/garment.jpg)
+
           jq -n \
             --arg prompt "$prompt" \
-            --arg person "https://cdn-dev.weon.ai/i/generated/0c64b33b-b375-4b4d-b911-cb808dd03114.png" \
-            --arg environment "https://cdn-dev.weon.ai/i/generated/a81130b2-5f65-4157-aa8e-3cfca488b01d.png" \
-            --arg garment "https://storage.googleapis.com/weon-general-electric-icon-486910-f1/zcq/temp/case1_lower.jpg" \
+            --arg person "data:image/jpeg;base64,$person" \
+            --arg environment "data:image/jpeg;base64,$environment" \
+            --arg garment "data:image/jpeg;base64,$garment" \
             '{
               model: "google/gemini-3.1-flash-lite-image",
               messages: [{
@@ -71,13 +119,23 @@ jobs:
           latency_ms=$((ended - started))
 
           if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
-            jq -r '.error.message // "OpenRouter returned HTTP '"$status"'"' response.json >&2
+            jq -n \
+              --argjson status "$status" \
+              --argjson latency_ms "$latency_ms" \
+              --arg message "$(jq -r '.error.message // "unknown OpenRouter error"' response.json)" \
+              '{http_status: $status, latency_ms: $latency_ms, error: $message}' \
+              > diagnostic-output/error.json
+            cat diagnostic-output/error.json >&2
             exit 1
           fi
 
           data_url=$(jq -r '.choices[0].message.images[0].image_url.url // empty' response.json)
           if [[ -z "$data_url" ]]; then
-            jq '{model, usage, message: .choices[0].message}' response.json > diagnostic-output/no-image-response.json
+            jq -n \
+              --argjson latency_ms "$latency_ms" \
+              --argjson response "$(jq '{model, usage, message: .choices[0].message}' response.json)" \
+              '{latency_ms: $latency_ms, response: $response}' \
+              > diagnostic-output/no-image-response.json
             echo "OpenRouter returned no image" >&2
             exit 1
           fi
