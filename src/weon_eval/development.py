@@ -15,6 +15,7 @@ from weon_eval.evaluation import (
     parse_attributes,
     parse_scores,
     summary_text,
+    validate_applicability_masks,
 )
 from weon_eval.prompts import render_prompt, render_structured_prompt
 from weon_eval.reporting import (
@@ -213,6 +214,11 @@ def run_development(
         baseline_scores = parse_scores(evaluation.data, "baseline")
         structured_a_scores = parse_scores(evaluation.data, "structured_a")
         structured_b_scores = parse_scores(evaluation.data, "structured_b")
+        validate_applicability_masks(
+            baseline_scores,
+            structured_a_scores,
+            structured_b_scores,
+        )
         selected = choose_best(structured_a_scores, structured_b_scores)
         selected_scores = (
             structured_a_scores if selected == "structured_a" else structured_b_scores
@@ -246,6 +252,14 @@ def run_development(
         selection_cost += evaluation.cost_usd or Decimal("0")
         selection_latency += evaluation.latency_seconds
 
+        attribute_metadata: dict[str, object] = {
+            "cost_usd": (
+                str(attribute_result.cost_usd)
+                if attribute_result.cost_usd is not None
+                else None
+            ),
+            "latency_seconds": attribute_result.latency_seconds,
+        }
         selection_metadata: dict[str, object] = {
             "selection_cost_usd": (
                 str(evaluation.cost_usd) if evaluation.cost_usd is not None else None
@@ -278,6 +292,7 @@ def run_development(
                     candidate="structured_a",
                     scores=structured_a_scores,
                     run_metadata=structured_a_metadata,
+                    attribute_metadata=attribute_metadata,
                     summary=summary_text(evaluation.data, "structured_a"),
                 ),
                 result_row(
@@ -286,6 +301,7 @@ def run_development(
                     candidate=selected,
                     scores=selected_scores,
                     run_metadata=combined_metadata,
+                    attribute_metadata=attribute_metadata,
                     selection_metadata=selection_metadata,
                     summary=summary_text(evaluation.data, selected),
                 ),
