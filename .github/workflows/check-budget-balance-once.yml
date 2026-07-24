@@ -34,7 +34,7 @@ jobs:
           else:
               remaining = Decimal(str(data["limit"])) - Decimal(str(data["usage"]))
           payload = {
-              "snapshot": 3,
+              "snapshot": 4,
               "remaining_allowance_usd": str(remaining),
           }
           Path("balance.json").write_text(json.dumps(payload, indent=2) + "\n")
