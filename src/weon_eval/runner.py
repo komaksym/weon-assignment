@@ -47,12 +47,12 @@ class PreparedReference:
 def _to_rgb(image: Image.Image) -> Image.Image:
     if image.mode == "RGB":
         return image
-    background = Image.new("RGB", image.size, "white")
-    if "A" in image.getbands():
-        background.paste(image, mask=image.getchannel("A"))
-    else:
-        background.paste(image)
-    return background
+    if "A" in image.getbands() or "transparency" in image.info:
+        rgba = image.convert("RGBA")
+        background = Image.new("RGBA", image.size, "white")
+        background.alpha_composite(rgba)
+        return background.convert("RGB")
+    return image.convert("RGB")
 
 
 def prepare_reference(
