@@ -1,0 +1,20 @@
+name: Execute final D01 once
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  run-d01:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'execute/slice-2-d01'
+    uses: ./.github/workflows/run-experiment.yml
+    with:
+      case_id: D01
+      model: google/gemini-3.1-flash-lite-image
+      confirm_paid_run: true
+    secrets: inherit
