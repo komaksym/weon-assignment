@@ -7,6 +7,7 @@ on:
 
 jobs:
   run:
+    # One-use caller; close without merging after artifact inspection.
     uses: ./.github/workflows/run-holdout.yml
     with:
       confirm_paid_run: true
