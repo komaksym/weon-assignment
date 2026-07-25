@@ -1,0 +1,129 @@
+name: Run top-two promotion search
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_paid_run:
+        description: Confirm paid D01-D03 promotion search
+        required: true
+        type: boolean
+        default: false
+      floor_usd:
+        description: Remaining key allowance floor
+        required: true
+        type: string
+        default: "0.30"
+      max_paid_requests:
+        description: Safety cap across generation, selector, and evaluator attempts
+        required: true
+        type: number
+        default: 300
+  workflow_call:
+    inputs:
+      confirm_paid_run:
+        required: true
+        type: boolean
+      floor_usd:
+        required: false
+        type: string
+        default: "0.30"
+      max_paid_requests:
+        required: false
+        type: number
+        default: 300
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paid-top-two-promotion-search
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: ${{ inputs.confirm_paid_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Guard paid run
+        env:
+          FLOOR_USD: ${{ inputs.floor_usd }}
+          MAX_PAID_REQUESTS: ${{ inputs.max_paid_requests }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+            echo "OPENROUTER_API_KEY is not configured" >&2
+            exit 2
+          fi
+          python - <<'PY'
+          import os
+          from decimal import Decimal
+
+          floor = Decimal(os.environ["FLOOR_USD"])
+          maximum = int(os.environ["MAX_PAID_REQUESTS"])
+          if floor < Decimal("0.25") or floor > Decimal("5.00"):
+              raise SystemExit("floor_usd must be between 0.25 and 5.00")
+          if maximum < 1 or maximum > 300:
+              raise SystemExit("max_paid_requests must be between 1 and 300")
+          PY
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Prepare development inputs
+        run: |
+          set -euo pipefail
+          for case_id in D01 D02 D03; do
+            uv run weon-prepare-inputs "$case_id"
+          done
+      - name: Run fixed promotion search
+        run: >-
+          uv run weon-promotion-search
+          --output outputs/promotion-search
+          --floor-usd ${{ inputs.floor_usd }}
+          --max-paid-requests ${{ inputs.max_paid_requests }}
+      - name: Publish summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("outputs/promotion-search/search_summary.json")
+          if not path.exists():
+              lines = ["## Top-two promotion search", "- No final summary was produced."]
+          else:
+              summary = json.loads(path.read_text())
+              lines = [
+                  "## Top-two promotion search",
+                  f"- Starting allowance: `${summary['starting_allowance_usd']}`",
+                  f"- Ending allowance: `${summary['ending_allowance_usd']}`",
+                  f"- Spend: `${summary['spent_usd']}`",
+                  f"- Paid attempts: `{summary['paid_requests']}`",
+                  f"- Successful candidates: `{summary['successful_candidates']}`",
+                  f"- Stop reason: `{summary['stop_reason']}`",
+                  f"- Automatic winner: `{summary['winner']}`",
+                  f"- Complete case blocks: `{summary['complete_case_blocks_required']}`",
+                  f"- Holdout requests: `{summary['holdout_requests']}`",
+              ]
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: top-two-promotion-search-${{ github.run_id }}
+          path: outputs/promotion-search/
+          if-no-files-found: warn
+          retention-days: 14
