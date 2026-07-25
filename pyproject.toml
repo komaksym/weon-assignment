@@ -15,6 +15,7 @@ weon-prepare-inputs = "weon_eval.prepare_inputs:main"
 weon-development = "weon_eval.development_cli:main"
 weon-holdout = "weon_eval.holdout_cli:main"
 weon-budget-search = "weon_eval.budget_search_cli:main"
+weon-promotion-search = "weon_eval.promotion_cli:main"
 
 [dependency-groups]
 dev = [
