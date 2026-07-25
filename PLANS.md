@@ -41,11 +41,11 @@ flowchart LR
 
 **Execution:** H01 and H02 were generated once with the frozen baseline. The successful workflow made two image requests, two evaluator requests, zero development requests, and zero retries.
 
-**Result:** Automatic mean `1.0000`; manual mean `0.6667`. Total generation cost was `$0.06940025`, rough evaluation cost was `$0.0026784`, and generation latency was `13.1647 s`.
+**Result:** H01's automatic result is invalid because the evaluator used `-1` for applicable shoe silhouette; H02's valid automatic score is `1.0000`. No two-case automatic mean is reported. The manual mean is `0.6667`. Total generation cost was `$0.06940025`, rough evaluation cost was `$0.0026784`, and generation latency was `13.1647 s`.
 
-**Output:** Final automatic/manual CSV evidence, holdout contact sheets, failure taxonomy, cost/latency summary, reproduction guide, and `REPORT.md`.
+**Output:** Corrected automatic/manual CSV evidence, crop-enhanced holdout contact sheets with recorded coordinates, failure taxonomy, cost/latency summary, reproduction guide, and `REPORT.md`.
 
-**Decision:** Freeze results exactly as observed. No holdout-driven prompt change, regeneration, candidate selection, or score editing was performed.
+**Decision:** Freeze outputs and human judgments exactly as observed. No holdout-driven prompt, model, preprocessing, candidate, rubric, regeneration, or manual-score change was performed; only the invalid automatic aggregation and durable presentation evidence were corrected during review.
 
 ## Constraints honored
 
@@ -53,4 +53,4 @@ flowchart LR
 - Paid workflows are manual/reusable only and have no automatic retry.
 - H01 and H02 remained ungenerated until the development winner and rubric were committed.
 - API keys, raw inputs, and standalone generated images are not committed.
-- Only compressed final contact sheets are committed as submission visual evidence.
+- Compressed crop-enhanced contact sheets remain as durable submission visual evidence.
