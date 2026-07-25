@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
 from PIL import Image, ImageDraw, ImageOps
 
@@ -14,7 +15,7 @@ from weon_eval.runner import OUTPUT_ASPECT_RATIO, OUTPUT_RESOLUTION, prepare_ref
 
 @dataclass(frozen=True)
 class SearchMethod:
-    """One immutable generation method in the round-robin search."""
+    """One immutable generation method in a round-robin search."""
 
     name: str
     model: str
@@ -157,14 +158,86 @@ SEARCH_METHODS = (
     ),
 )
 
-IDENTITY_PRIORITY_SUFFIX = """
+TARGETED_METHODS = (
+    _method(
+        "lite_identity_negative",
+        "google/gemini-3.1-flash-lite-image",
+        "identity_negative",
+        "direct",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_tight_crop",
+        "google/gemini-3.1-flash-lite-image",
+        "baseline",
+        "tight_crop",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_garment_first",
+        "google/gemini-3.1-flash-lite-image",
+        "baseline",
+        "garment_first",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_duplicate_garment",
+        "google/gemini-3.1-flash-lite-image",
+        "baseline",
+        "duplicate_garment",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_background_removed",
+        "google/gemini-3.1-flash-lite-image",
+        "baseline",
+        "background_removed",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_identity_tight_crop",
+        "google/gemini-3.1-flash-lite-image",
+        "identity_negative",
+        "tight_crop",
+        1,
+        "0.06",
+    ),
+    _method(
+        "lite_identity_detail_board",
+        "google/gemini-3.1-flash-lite-image",
+        "identity_negative",
+        "detail_board",
+        1,
+        "0.06",
+    ),
+)
 
+METHOD_SETS = {
+    "broad": SEARCH_METHODS,
+    "targeted": TARGETED_METHODS,
+}
+
+IDENTITY_PRIORITY_SUFFIX = """
 PRODUCT-IDENTITY PRIORITY:
 The garment must remain the exact referenced product, not merely the same category.
 Prioritize readable branding, exact panel and pocket geometry, closures, seams, sole/toe shape,
 material boundaries, texture, and color over creative styling. Do not simplify, redesign,
 substitute, mirror, move, add, or remove product-defining details. Keep the person and setting
 natural, but sacrifice aesthetic embellishment before sacrificing garment fidelity.
+""".strip()
+
+NEGATIVE_CONSTRAINT_SUFFIX = """
+NEGATIVE CONSTRAINTS:
+Do not remove, blur, replace, misspell, or invent visible branding or text.
+Do not change the number, position, orientation, or geometry of pockets, panels, seams,
+zippers, buttons, closures, eyelets, laces, soles, collars, cuffs, or waist details.
+Do not change the source color family, material boundaries, surface texture, garment length,
+or silhouette. Do not mirror asymmetric details. Do not add details hidden by the packshot.
 """.strip()
 
 REPAIR_PROMPT = """Edit reference 1 rather than creating a new composition.
@@ -174,14 +247,40 @@ garment so it matches the exact source product: branding/text, color, silhouette
 pockets, seams, closures, zippers, buttons, sole/toe geometry, material boundaries, and texture.
 Do not add accessories, alter the person, restyle the scene, or invent hidden details."""
 
+_DEFAULT_REFERENCE_ORDER = """using the supplied references in this order:
+1. the person/model image,
+2. the environment image,
+3. the garment packshot image(s)."""
+
+_GARMENT_FIRST_REFERENCE_ORDER = """using the supplied references in this order:
+1. the garment packshot image,
+2. the person/model image,
+3. the environment image."""
+
+_DUPLICATE_REFERENCE_NOTE = """
+References 3 and 4 are duplicate views of the same garment. Treat both as product evidence,
+not as two garments. Dress the person in one instance of the garment.
+""".strip()
+
 
 def method_prompt(method: SearchMethod, baseline_prompt: str) -> str:
     """Return the predeclared prompt for a method."""
 
+    prompt = baseline_prompt
+    if method.reference_mode == "garment_first":
+        prompt = prompt.replace(_DEFAULT_REFERENCE_ORDER, _GARMENT_FIRST_REFERENCE_ORDER)
+    if method.reference_mode == "duplicate_garment":
+        prompt = f"{prompt.rstrip()}\n\n{_DUPLICATE_REFERENCE_NOTE}\n"
+
     if method.prompt_kind == "baseline":
-        return baseline_prompt
+        return prompt
     if method.prompt_kind == "identity":
-        return f"{baseline_prompt.rstrip()}\n\n{IDENTITY_PRIORITY_SUFFIX}\n"
+        return f"{prompt.rstrip()}\n\n{IDENTITY_PRIORITY_SUFFIX}\n"
+    if method.prompt_kind == "identity_negative":
+        return (
+            f"{prompt.rstrip()}\n\n{IDENTITY_PRIORITY_SUFFIX}\n\n"
+            f"{NEGATIVE_CONSTRAINT_SUFFIX}\n"
+        )
     raise ValueError(f"unsupported prompt kind: {method.prompt_kind}")
 
 
@@ -191,6 +290,71 @@ def _rgb(path: Path) -> Image.Image:
     background = Image.new("RGBA", image.size, "white")
     background.alpha_composite(image)
     return background.convert("RGB")
+
+
+def _background_color(image: Image.Image) -> tuple[int, int, int]:
+    corners = (
+        image.getpixel((0, 0)),
+        image.getpixel((image.width - 1, 0)),
+        image.getpixel((0, image.height - 1)),
+        image.getpixel((image.width - 1, image.height - 1)),
+    )
+    average = tuple(
+        round(sum(pixel[channel] for pixel in corners) / len(corners))
+        for channel in range(3)
+    )
+    return cast(tuple[int, int, int], average)
+
+
+def _foreground_mask(image: Image.Image, threshold: int = 42) -> Image.Image:
+    background = _background_color(image)
+    threshold_squared = threshold * threshold
+    mask = Image.new("L", image.size)
+    values = []
+    for red, green, blue in image.getdata():
+        distance = (
+            (red - background[0]) ** 2
+            + (green - background[1]) ** 2
+            + (blue - background[2]) ** 2
+        )
+        values.append(255 if distance > threshold_squared else 0)
+    mask.putdata(values)
+    return mask
+
+
+def create_tight_crop(garment_path: Path, output_path: Path) -> Path:
+    """Crop deterministic corner-background whitespace around a garment."""
+
+    image = _rgb(garment_path)
+    bbox = _foreground_mask(image).getbbox()
+    if bbox is None:
+        crop = image
+    else:
+        left, top, right, bottom = bbox
+        padding = round(max(right - left, bottom - top) * 0.06)
+        crop = image.crop(
+            (
+                max(0, left - padding),
+                max(0, top - padding),
+                min(image.width, right + padding),
+                min(image.height, bottom + padding),
+            )
+        )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    crop.save(output_path, format="JPEG", quality=92, optimize=True)
+    return output_path
+
+
+def create_background_removed(garment_path: Path, output_path: Path) -> Path:
+    """Replace the corner-like background with white."""
+
+    image = _rgb(garment_path)
+    mask = _foreground_mask(image)
+    cleaned = Image.new("RGB", image.size, "white")
+    cleaned.paste(image, mask=mask)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cleaned.save(output_path, format="JPEG", quality=92, optimize=True)
+    return output_path
 
 
 def _crop(image: Image.Image, top: float, bottom: float) -> Image.Image:
@@ -235,13 +399,26 @@ def method_reference_paths(
     method: SearchMethod,
     work_dir: Path,
 ) -> tuple[Path, ...]:
-    """Return person/environment/garment references for one predeclared method."""
+    """Return ordered references for one predeclared method."""
 
     if method.reference_mode == "direct":
         return case.reference_paths
     if method.reference_mode == "detail_board":
         board = create_detail_board(case.garments[0], work_dir / "garment-detail-board.jpg")
         return (case.model, case.environment, board)
+    if method.reference_mode == "tight_crop":
+        crop = create_tight_crop(case.garments[0], work_dir / "garment-tight-crop.jpg")
+        return (case.model, case.environment, crop)
+    if method.reference_mode == "garment_first":
+        return (*case.garments, case.model, case.environment)
+    if method.reference_mode == "duplicate_garment":
+        return (case.model, case.environment, *case.garments, *case.garments)
+    if method.reference_mode == "background_removed":
+        cleaned = create_background_removed(
+            case.garments[0],
+            work_dir / "garment-background-removed.jpg",
+        )
+        return (case.model, case.environment, cleaned)
     raise ValueError(f"unsupported reference mode: {method.reference_mode}")
 
 
