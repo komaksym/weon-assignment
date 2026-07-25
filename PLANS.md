@@ -1,13 +1,16 @@
 # Garment-consistency experiment plan
 
-**Summary:** The four-slice assignment is complete. A post-submission development-only extension now tests additional methods under a frozen evaluator and a hard OpenRouter allowance floor.
+**Summary:** The four-slice assignment and the post-submission development-only extension are complete. No tested method reliably improved on direct generation, the automatic evaluator saturated before exact product fidelity, and paid exploration stopped with direct generation retained as the operational baseline.
 
 ```mermaid
 flowchart LR
     S1[1. Foundation ✓] --> S2[2. Operational D01 baseline ✓]
     S2 --> S3[3. D01-D03 development experiments ✓]
     S3 --> S4[4. Frozen holdouts + submission ✓]
-    S4 --> E[Budgeted D01-D03 method search]
+    S4 --> B[Broad method search ✓]
+    B --> T[Targeted conditioning search ✓]
+    T --> P[Promotion + paired control ✓]
+    P --> D[Stop: baseline not beaten ✓]
 ```
 
 ## Slice 1 — experiment foundation
@@ -48,29 +51,48 @@ flowchart LR
 
 **Decision:** Freeze outputs and ChatGPT visual judgments exactly as observed. No holdout-driven prompt, model, preprocessing, candidate, rubric, regeneration, or ChatGPT visual-score change was performed; only the invalid automatic aggregation and durable presentation evidence were corrected during review.
 
-## Budgeted development-only method search
+## Post-submission development-only method search
 
-**Status:** implementation complete; paid execution pending exact-head validation.
+**Status:** complete. H01 and H02 remained inaccessible throughout method selection and were not rerun.
 
-**Cases:** D01, D02, D03 only. H01 and H02 are inaccessible.
+### Broad search
 
 **Methods:** direct generation, identity-priority prompting, deterministic garment-detail boards, fixed two-pass repair, and predeclared model swaps.
 
-**Evaluation integrity:** `openai/gpt-4.1-mini`, one opaque candidate, the same six-dimension rubric, fixed source-level applicability masks, raw JSON before validation, and no evaluator-based sample selection. The evaluator contract and method queue were committed before execution.
+**Execution:** The guarded search started with `$19.4208539`, ended at `$10.0358314`, spent `$9.3850225`, made 332 paid attempts, and produced 102 valid candidates before the `$10.00` floor guard stopped execution.
 
-**Budget control:** read key-specific allowance before every paid call, retain a hard `$10.00` floor using conservative per-call reserves, count failed attempts, disable a generation method after its first provider failure, and reserve the near-floor descent for the previously measured low-cost direct Nano Banana 2 Lite method.
+**Result:** Some higher-cost methods received perfect automatic scores, but most samples tied the direct baseline, D03 evidence was incomplete, and visual inspection did not establish a reliable improvement.
 
-**Output:** temporary full artifact plus durable compact result summary after execution. The search does not replace or retune the frozen holdout evidence.
+### Targeted conditioning and promotion
 
-## Evaluation provenance
+**Methods:** explicit negative constraints, tight garment crops, background removal, garment-first ordering, duplicate garment references, detail boards, best-of-two selection, and garment-focused repair.
 
-The completed visual-assessment scores were produced by ChatGPT from the contact sheets. No independent human evaluator participated; this is an explicit limitation of the evidence.
+**Stage-one result:** `lite_duplicate_garment` scored `0.9940` and `lite_identity_tight_crop` scored `0.9936`, but the run lacked a concurrent direct control and the evaluator was already near saturation.
+
+**Promotion result:** `identity_tight_crop_best_of_two` scored `0.9750` at approximately `$0.0727` and `15.01 s` per candidate. The repeated `lite_direct` control scored `0.9762` at approximately `$0.0360` and `8.53 s` per candidate. Promotion therefore doubled cost without improving the measured result.
+
+**Paired control:** A same-run D01-D03 block produced `lite_direct = 1.0000`, `lite_identity_negative = 1.0000`, and `lite_identity_tight_crop = 0.9667`. A final duplicate-reference block also scored `1.0000`, while visible logo, construction, and material errors remained.
+
+**Final decision:** No tested method is claimed to beat direct generation. The evaluator saturated before exact garment identity was preserved, so paid exploration stopped. Keep `lite_direct` as the operational baseline and add garment-region OCR/logo, construction-detail, and material checks before selective repair, resampling, or human review.
+
+## Evaluation integrity and provenance
+
+- The final evaluator remained `openai/gpt-4.1-mini` with the same six-dimension rubric, fixed source-level applicability masks, opaque candidate identifiers where required, unchanged aggregation, and raw JSON persisted before validation.
+- No automatic retry, score-driven prompt change, method-specific judge prompt, or holdout-driven tuning was used.
+- ChatGPT produced the visual-assessment scores from committed contact sheets. No independent human evaluator participated; this is an explicit limitation of the evidence.
+- Perfect or near-perfect automatic scores were treated as evaluator-ceiling evidence, not proof of exact product fidelity.
+
+## Budget and stopping state
+
+- Paid workflows remained manual/reusable and ran free validation before spending.
+- The final observed vendor-key allowance was approximately `$0.03`.
+- The low-balance endpoint showed delayed or non-monotonic observations, so per-request costs and committed workflow artifacts are the durable accounting evidence.
+- No further meaningful paid experiment is planned without a fresh budget, improved garment-region evaluation, and independent human ratings.
 
 ## Constraints honored
 
 - No fine-tuning, UI, deployment, database, dashboard, generalized benchmark framework, or production orchestration.
-- Paid workflows are manual/reusable only and have no automatic retry.
 - H01 and H02 remained ungenerated until the development winner and rubric were committed.
-- The post-submission search does not access or rerun H01/H02.
+- The post-submission search did not access or rerun H01/H02.
 - API keys, raw inputs, and standalone generated images are not committed.
 - Compressed crop-enhanced contact sheets remain as durable submission visual evidence.
