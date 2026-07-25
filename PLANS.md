@@ -1,12 +1,13 @@
 # Garment-consistency experiment plan
 
-**Summary:** Complete. The assignment was delivered as a four-slice evidence-driven experiment rather than a production platform.
+**Summary:** The four-slice assignment is complete. A post-submission development-only extension now tests additional methods under a frozen evaluator and a hard OpenRouter allowance floor.
 
 ```mermaid
 flowchart LR
     S1[1. Foundation ✓] --> S2[2. Operational D01 baseline ✓]
     S2 --> S3[3. D01-D03 development experiments ✓]
     S3 --> S4[4. Frozen holdouts + submission ✓]
+    S4 --> E[Budgeted D01-D03 method search]
 ```
 
 ## Slice 1 — experiment foundation
@@ -47,6 +48,20 @@ flowchart LR
 
 **Decision:** Freeze outputs and ChatGPT visual judgments exactly as observed. No holdout-driven prompt, model, preprocessing, candidate, rubric, regeneration, or ChatGPT visual-score change was performed; only the invalid automatic aggregation and durable presentation evidence were corrected during review.
 
+## Budgeted development-only method search
+
+**Status:** implementation complete; paid execution pending exact-head validation.
+
+**Cases:** D01, D02, D03 only. H01 and H02 are inaccessible.
+
+**Methods:** direct generation, identity-priority prompting, deterministic garment-detail boards, fixed two-pass repair, and predeclared model swaps.
+
+**Evaluation integrity:** `openai/gpt-4.1-mini`, one opaque candidate, the same six-dimension rubric, fixed source-level applicability masks, raw JSON before validation, and no evaluator-based sample selection. The evaluator contract and method queue were committed before execution.
+
+**Budget control:** read key-specific allowance before every paid call, retain a hard `$10.00` floor using conservative per-call reserves, count failed attempts, disable a generation method after its first provider failure, and reserve the near-floor descent for the previously measured low-cost direct Nano Banana 2 Lite method.
+
+**Output:** temporary full artifact plus durable compact result summary after execution. The search does not replace or retune the frozen holdout evidence.
+
 ## Evaluation provenance
 
 The completed visual-assessment scores were produced by ChatGPT from the contact sheets. No independent human evaluator participated; this is an explicit limitation of the evidence.
@@ -56,5 +71,6 @@ The completed visual-assessment scores were produced by ChatGPT from the contact
 - No fine-tuning, UI, deployment, database, dashboard, generalized benchmark framework, or production orchestration.
 - Paid workflows are manual/reusable only and have no automatic retry.
 - H01 and H02 remained ungenerated until the development winner and rubric were committed.
+- The post-submission search does not access or rerun H01/H02.
 - API keys, raw inputs, and standalone generated images are not committed.
 - Compressed crop-enhanced contact sheets remain as durable submission visual evidence.
