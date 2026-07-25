@@ -130,6 +130,24 @@ def test_run_development_executes_nine_generations_and_no_holdouts(tmp_path: Pat
         for row in rows
         if row["strategy"] == "best_of_two"
     )
+    for row in rows:
+        strategy = row["strategy"]
+        setup_cost = Decimal(row["attribute_extraction_cost_usd"])
+        setup_latency = Decimal(row["attribute_extraction_latency_seconds"])
+        total_cost = Decimal(row["total_strategy_cost_usd"])
+        if strategy == "baseline":
+            assert setup_cost == Decimal("0")
+            assert setup_latency == Decimal("0")
+            assert total_cost == Decimal("0.01")
+        elif strategy == "structured":
+            assert setup_cost == Decimal("0.001")
+            assert setup_latency == Decimal("0.1")
+            assert total_cost == Decimal("0.011")
+        else:
+            assert setup_cost == Decimal("0.001")
+            assert setup_latency == Decimal("0.1")
+            assert total_cost == Decimal("0.023")
+
     summary = json.loads((output_root / "development_summary.json").read_text())
     assert summary["image_requests"] == 9
     assert summary["vlm_requests"] == 6

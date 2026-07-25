@@ -4,7 +4,7 @@
 
 `complete — freeze baseline for slice 4`
 
-The consolidated D01-D03 matrix completed successfully and compared the direct baseline, structured garment prompting, and VLM-selected best-of-two. The automatic metric gave a small advantage to the two structured methods, but manual review found no consistent fidelity improvement and selected the baseline after considering cost, latency, and robustness.
+The consolidated D01-D03 matrix completed successfully and compared the direct baseline, structured garment prompting, and VLM-selected best-of-two. The automatic evaluator slightly favored the structured methods, but it was shown treatment labels and is therefore retained only as non-blinded exploratory evidence. Manual review found no consistent fidelity improvement and selected the baseline after considering cost, latency, and robustness.
 
 ## Execution
 
@@ -28,10 +28,12 @@ The first isolated execution used `google/gemini-2.5-flash-lite` as evaluator. I
 | Strategy | Automatic mean | Manual mean | Average method cost | Average method latency |
 | --- | ---: | ---: | ---: | ---: |
 | Baseline | 0.7222 | **0.6833** | **$0.034466** | **5.48 s** |
-| Structured | **0.7500** | 0.6500 | $0.034613 | 5.38 s |
-| Best of two | **0.7500** | 0.6500 | $0.071923 | 51.41 s |
+| Structured | 0.7500 | 0.6500 | $0.035331 | 8.16 s |
+| Best of two | 0.7500 | 0.6500 | $0.072641 | 54.19 s |
 
-Method cost for best-of-two includes both structured image candidates and the comparison VLM request. Attribute extraction is reported separately because it is shared setup for the two structured directions.
+Structured and best-of-two totals each include the garment-attribute extraction request required to construct their prompts. Best-of-two additionally includes both structured generations and the comparison VLM request. The global final-matrix total remains unchanged because shared extraction is counted once per case at the matrix level.
+
+The automatic means are not treated as independent strategy evidence because the evaluator prompt and schema exposed the identities `baseline`, `structured_a`, and `structured_b`. They remain useful as rough diagnostics only; no additional calls were made to rescore the existing images.
 
 ## Manual sanity check
 
@@ -41,7 +43,7 @@ Method cost for best-of-two includes both structured image candidates and the co
 | D02 sneakers | Structured A | Tie; A acceptable | Brown/tan shape is preserved, but ARIGATO branding is absent; automatic `1.0` scores are overconfident. |
 | D03 jacket | Structured A | **Disagree; B looked closer** | A shifts toward brown/olive in sunlight; B better preserves dark-green color and collar contrast. |
 
-The selector chose A for all three cases because automatic scores tied. The deterministic A tie-break is reproducible, but D03 shows that it is not reliably aligned with human preference.
+The selector chose A for all three cases because automatic scores tied. The deterministic A tie-break is reproducible, but D03 shows that it is not reliably aligned with human preference. The current artifact used the same N/A mask across candidates; the evaluator boundary now rejects future comparisons whose candidate-specific `-1` masks differ.
 
 ## Failure taxonomy
 
@@ -50,7 +52,8 @@ The selector chose A for all three cases because automatic scores tied. The dete
 - **Texture simplification:** Technical fabric, suede/leather separation, waxed coating, and corduroy are only partially retained.
 - **Lighting-driven color drift:** Structured D03 is pushed toward brown/olive despite explicit dark-green constraints.
 - **Evaluator overconfidence:** Small footwear details received perfect automatic scores even when branding and exact construction were visibly absent.
-- **Selection overhead without benefit:** Best-of-two doubled method cost and substantially increased latency while selecting no manual winner that improved the aggregate score.
+- **Non-blinded evaluator:** Treatment labels were visible, so small automatic differences cannot be interpreted as clean causal evidence.
+- **Selection overhead without benefit:** Best-of-two more than doubled method cost and substantially increased latency while selecting no manual winner that improved the aggregate score.
 
 ## Decision
 
@@ -68,6 +71,6 @@ Freeze the following for slice 4:
 - manual rubric: color, print/logo, silhouette/length, construction details, texture/material, presence;
 - retries and resampling: none.
 
-The automatic structured advantage is only `0.0278`, reverses under manual review, and does not justify extra prompt/evaluator complexity. Baseline is the simplest, cheapest, and most robust method supported by this development set.
+The automatic `0.0278` structured difference is not used to support the decision because the comparison was non-blinded. Baseline is selected from the manual results, corrected end-to-end method costs and latencies, selector disagreement, and lower operational complexity.
 
 H01 and H02 remain ungenerated and uninspected. They may now be evaluated once in slice 4 using the frozen configuration.
