@@ -568,7 +568,7 @@ def run_promotion_search(
     skips: list[dict[str, object]] = []
     counter = PaidRequestCounter()
     replicate = 1
-    stop_reason = "request_cap"
+    stop_reason = "running"
 
     while counter.count < max_paid_requests:
         successful_this_round = 0
@@ -636,13 +636,15 @@ def run_promotion_search(
                 break
 
         if successful_this_round == 0:
-            if stop_reason != "request_cap":
+            if stop_reason == "running":
                 stop_reason = (
                     "floor_guard" if attempted_this_round == 0 else "no_successful_candidates"
                 )
             break
         replicate += 1
 
+    if stop_reason == "running":
+        stop_reason = "request_cap"
     ending = allowance_getter(api_key)
     summaries = _method_summaries(rows)
     winner = str(summaries[0]["method"]) if summaries else None
