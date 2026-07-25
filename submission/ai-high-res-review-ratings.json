@@ -1,0 +1,107 @@
+{
+  "review_type": "AI-assisted high-resolution visual audit",
+  "independent_human_review": false,
+  "rubric": {
+    "dimensions": [
+      "color",
+      "print_logo",
+      "silhouette_length",
+      "construction_details",
+      "texture_material",
+      "garment_presence"
+    ],
+    "scores": [1, 0.5, 0, -1],
+    "na_excluded_from_mean": true
+  },
+  "ratings": [
+    {
+      "case_id": "D01",
+      "method": "baseline",
+      "scores": {"color": 1, "print_logo": 0.5, "silhouette_length": 1, "construction_details": 0.5, "texture_material": 1, "garment_presence": 1},
+      "mean": 0.8333,
+      "note": "Strong overall match; branding is only approximate/unreadable at inspection scale and D-ring/loop-level construction is not exact."
+    },
+    {
+      "case_id": "D01",
+      "method": "structured",
+      "scores": {"color": 1, "print_logo": 0.5, "silhouette_length": 1, "construction_details": 0.5, "texture_material": 1, "garment_presence": 1},
+      "mean": 0.8333,
+      "note": "Strong overall match; no clear fidelity advantage over baseline at branding or micro-construction level."
+    },
+    {
+      "case_id": "D01",
+      "method": "best-of-two",
+      "scores": {"color": 1, "print_logo": 0.5, "silhouette_length": 1, "construction_details": 0.5, "texture_material": 1, "garment_presence": 1},
+      "mean": 0.8333,
+      "note": "Same selected image as structured-A in the frozen artifact; therefore the visual score is identical."
+    },
+    {
+      "case_id": "D02",
+      "method": "baseline",
+      "scores": {"color": 1, "print_logo": 0, "silhouette_length": 0.5, "construction_details": 0.5, "texture_material": 0.5, "garment_presence": 1},
+      "mean": 0.5833,
+      "note": "Brown/tan identity is preserved, but visible ARIGATO branding is not legible and toe/side panel, sole, and material-boundary geometry drift."
+    },
+    {
+      "case_id": "D02",
+      "method": "structured",
+      "scores": {"color": 1, "print_logo": 0, "silhouette_length": 0.5, "construction_details": 0.5, "texture_material": 0.5, "garment_presence": 1},
+      "mean": 0.5833,
+      "note": "Same product family/style, but branding and exact overlay/toe/sole construction are not preserved."
+    },
+    {
+      "case_id": "D02",
+      "method": "best-of-two",
+      "scores": {"color": 1, "print_logo": 0, "silhouette_length": 0.5, "construction_details": 0.5, "texture_material": 0.5, "garment_presence": 1},
+      "mean": 0.5833,
+      "note": "Same selected image as structured-A in the frozen artifact; therefore the visual score is identical."
+    },
+    {
+      "case_id": "D03",
+      "method": "baseline",
+      "scores": {"color": 0.5, "print_logo": -1, "silhouette_length": 1, "construction_details": 0.5, "texture_material": 0.5, "garment_presence": 1},
+      "mean": 0.7000,
+      "note": "Dark-green field-jacket identity and length are preserved, but dark-brown corduroy collar, concealed closure, lower-pocket construction, and material specificity drift."
+    },
+    {
+      "case_id": "D03",
+      "method": "structured",
+      "scores": {"color": 0.5, "print_logo": -1, "silhouette_length": 1, "construction_details": 0.5, "texture_material": 0.5, "garment_presence": 1},
+      "mean": 0.7000,
+      "note": "Visually convincing jacket, but exact collar color/material, closure, and pockets are not preserved."
+    },
+    {
+      "case_id": "D03",
+      "method": "best-of-two",
+      "scores": {"color": 0.5, "print_logo": -1, "silhouette_length": 1, "construction_details": 0.5, "texture_material": 0.5, "garment_presence": 1},
+      "mean": 0.7000,
+      "note": "Same selected image as structured-A in the frozen artifact; therefore the visual score is identical."
+    },
+    {
+      "case_id": "H01",
+      "method": "frozen baseline",
+      "scores": {"color": 1, "print_logo": 0, "silhouette_length": 0.5, "construction_details": 0.5, "texture_material": 0.5, "garment_presence": 1},
+      "mean": 0.5833,
+      "note": "Holdout repeats the footwear failure pattern: palette is right, but branding, overlay geometry, toe/sole proportions, and material boundaries are approximate."
+    },
+    {
+      "case_id": "H02",
+      "method": "frozen baseline",
+      "scores": {"color": 1, "print_logo": 0.5, "silhouette_length": 1, "construction_details": 0.5, "texture_material": 1, "garment_presence": 1},
+      "mean": 0.8333,
+      "note": "Strong shorts reproduction; double-button waist, panels, zips, length, and material read correctly, but branding and asymmetric micro-details are moved/mirrored and D-ring-level construction is not exact."
+    }
+  ],
+  "development_method_means": {
+    "baseline": 0.7056,
+    "structured": 0.7056,
+    "best-of-two": 0.7056
+  },
+  "overall": {
+    "structured_consistently_outperformed_baseline": "No",
+    "best_of_two_consistently_outperformed_baseline": "No",
+    "brand_critical_catalog_ready": "No",
+    "automatic_perfect_results_contained_obvious_errors": "Yes",
+    "preferred_development_method": "Baseline"
+  }
+}
