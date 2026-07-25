@@ -1,0 +1,12 @@
+{
+  "after": [
+    "main"
+  ],
+  "before": [
+    "chore/trigger-branch-cleanup",
+    "docs/finalize-plans-state",
+    "docs/high-resolution-human-review",
+    "main"
+  ],
+  "deleted_count": 3
+}
