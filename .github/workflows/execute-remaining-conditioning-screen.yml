@@ -1,0 +1,107 @@
+name: Execute remaining conditioning screen once
+
+on:
+  pull_request:
+    branches: [experiment/targeted-ablation-search]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paid-remaining-conditioning-screen
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    if: ${{ github.head_ref == 'execute/remaining-conditioning-screen' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Guard paid run
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}"
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Prepare development inputs
+        run: |
+          set -euo pipefail
+          for case_id in D01 D02 D03; do
+            uv run weon-prepare-inputs "$case_id"
+          done
+      - name: Run frozen remaining screen
+        run: |
+          uv run python - <<'PY'
+          import os
+          from dataclasses import replace
+          from decimal import Decimal
+          from pathlib import Path
+
+          import weon_eval.budget_search as search
+          from weon_eval.search_methods import TARGETED_METHODS
+
+          by_name = {method.name: method for method in TARGETED_METHODS}
+          methods = (
+              replace(
+                  by_name["lite_duplicate_garment"],
+                  generation_reserve_usd=Decimal("0.04"),
+              ),
+              replace(
+                  by_name["lite_identity_detail_board"],
+                  generation_reserve_usd=Decimal("0.04"),
+              ),
+          )
+          search.NEAR_FLOOR_WINDOW_USD = Decimal("0")
+          search.run_budget_search(
+              cases_path=Path("cases.json"),
+              prompt_path=Path("prompts/baseline.txt"),
+              api_key=os.environ["OPENROUTER_API_KEY"],
+              output_root=Path("outputs/remaining-conditioning-screen"),
+              floor_usd=Decimal("0"),
+              max_paid_requests=12,
+              methods=methods,
+          )
+          PY
+      - name: Publish summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("outputs/remaining-conditioning-screen/search_summary.json")
+          lines = ["## Remaining conditioning screen"]
+          if path.exists():
+              summary = json.loads(path.read_text())
+              for key in (
+                  "starting_allowance_usd",
+                  "ending_allowance_usd",
+                  "spent_usd",
+                  "paid_requests",
+                  "successful_candidates",
+                  "stop_reason",
+                  "winner",
+              ):
+                  lines.append(f"- {key}: `{summary[key]}`")
+          else:
+              lines.append("- No final summary was produced.")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remaining-conditioning-screen-${{ github.run_id }}
+          path: outputs/remaining-conditioning-screen/
+          if-no-files-found: warn
+          retention-days: 14
