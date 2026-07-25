@@ -1,0 +1,84 @@
+name: Render human-review sheets
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/render-human-review.yml
+      - scripts/render_human_review_sheets.py
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  render:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Download frozen experiment artifacts
+        run: |
+          gh run download 30102014361 \
+            --name development-matrix-30102014361 \
+            --dir /tmp/development
+          gh run download 30113526488 \
+            --name frozen-holdouts-30113526488 \
+            --dir /tmp/holdout
+
+      - name: Render review sheets
+        run: |
+          uv run python scripts/render_human_review_sheets.py \
+            --development-root /tmp/development \
+            --holdout-root /tmp/holdout \
+            --output-dir submission/review
+
+      - name: Verify review evidence
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          expected = {
+              'D01-human-review.png': (4200, 2400),
+              'D02-human-review.png': (4200, 2400),
+              'D03-human-review.png': (4200, 2400),
+              'H01-human-review.png': (3100, 2250),
+              'H02-human-review.png': (3100, 2250),
+          }
+          root = Path('submission/review')
+          for name, size in expected.items():
+              path = root / name
+              if not path.exists():
+                  raise SystemExit(f'Missing review sheet: {path}')
+              with Image.open(path) as image:
+                  image.verify()
+              with Image.open(path) as image:
+                  if image.size != size:
+                      raise SystemExit(f'{name}: expected {size}, got {image.size}')
+              if path.stat().st_size < 500_000:
+                  raise SystemExit(f'{name}: unexpectedly small file')
+          PY
+
+      - name: Commit rendered sheets to the PR branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add submission/review/*.png
+          git commit \
+            -m 'docs: render high-resolution review sheets' \
+            -m 'Rebuild D01-D03 and H01-H02 review evidence from the original full-resolution workflow artifacts. Preserve the frozen generated outputs while presenting source garments, full candidates, and garment-region detail crops on readable PNG canvases.'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
