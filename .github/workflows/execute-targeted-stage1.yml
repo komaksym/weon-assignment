@@ -6,7 +6,7 @@ on:
 
 jobs:
   execute:
-    if: ${{ github.head_ref == 'execute/targeted-ablation-stage1' }}
+    if: ${{ github.head_ref == 'execute/targeted-stage1-v2' }}
     uses: ./.github/workflows/run-targeted-ablation-search.yml
     with:
       confirm_paid_run: true
