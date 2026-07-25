@@ -273,14 +273,13 @@ def validate_document(value: object) -> ReviewDocument:
         },
     )
 
-    return copy.deepcopy(
-        {
-            "schema_version": 1,
-            "rater": rater,
-            "ratings": ratings,
-            "overall": overall,
-        }
-    )
+    document: ReviewDocument = {
+        "schema_version": 1,
+        "rater": rater,
+        "ratings": ratings,
+        "overall": overall,
+    }
+    return copy.deepcopy(document)
 
 
 def _mean(scores: dict[str, float]) -> float | None:
