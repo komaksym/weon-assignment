@@ -12,7 +12,7 @@ from weon_eval.budget_search import (
     DEFAULT_MAX_PAID_REQUESTS,
     run_budget_search,
 )
-from weon_eval.search_methods import METHOD_SETS
+from weon_eval.search_methods import METHOD_SETS, SEARCH_METHODS, SearchMethod
 
 
 def _decimal(value: str) -> Decimal:
@@ -23,6 +23,15 @@ def _decimal(value: str) -> Decimal:
     if result < 0:
         raise argparse.ArgumentTypeError("must be non-negative")
     return result
+
+
+def execution_methods(method_set: str) -> tuple[SearchMethod, ...]:
+    """Return one frozen method queue, including a same-run targeted control."""
+
+    methods = METHOD_SETS[method_set]
+    if method_set == "targeted":
+        return (SEARCH_METHODS[0], *methods)
+    return methods
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,7 +65,7 @@ def main() -> None:
         output_root=args.output,
         floor_usd=args.floor_usd,
         max_paid_requests=args.max_paid_requests,
-        methods=METHOD_SETS[args.method_set],
+        methods=execution_methods(args.method_set),
     )
 
 
