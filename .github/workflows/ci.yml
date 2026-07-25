@@ -84,6 +84,7 @@ jobs:
           git fetch origin experiment/budgeted-method-search --depth=1
           git show origin/experiment/budgeted-method-search:.github/workflows/ci.yml > .github/workflows/ci.yml
           rm -f .github/workflows/diagnose-promotion.yml
+          rm -f .promotion-fairness-trigger
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
