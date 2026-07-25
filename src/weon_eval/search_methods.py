@@ -25,202 +25,97 @@ class SearchMethod:
     generation_reserve_usd: Decimal
 
 
-def _method(
-    name: str,
-    model: str,
-    prompt_kind: str,
-    reference_mode: str,
-    passes: int,
-    reserve: str,
-) -> SearchMethod:
-    return SearchMethod(
-        name=name,
-        model=model,
-        prompt_kind=prompt_kind,
-        reference_mode=reference_mode,
-        passes=passes,
-        generation_reserve_usd=Decimal(reserve),
+MethodSpec = tuple[str, str, str, str, int, str]
+
+
+def _methods(specs: tuple[MethodSpec, ...]) -> tuple[SearchMethod, ...]:
+    return tuple(
+        SearchMethod(
+            name=name,
+            model=model,
+            prompt_kind=prompt_kind,
+            reference_mode=reference_mode,
+            passes=passes,
+            generation_reserve_usd=Decimal(reserve),
+        )
+        for name, model, prompt_kind, reference_mode, passes, reserve in specs
     )
 
 
-SEARCH_METHODS = (
-    _method(
-        "lite_direct",
-        "google/gemini-3.1-flash-lite-image",
-        "baseline",
-        "direct",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_identity_prompt",
-        "google/gemini-3.1-flash-lite-image",
-        "identity",
-        "direct",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_detail_board",
-        "google/gemini-3.1-flash-lite-image",
-        "baseline",
-        "detail_board",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_two_pass_repair",
-        "google/gemini-3.1-flash-lite-image",
-        "baseline",
-        "direct",
-        2,
-        "0.06",
-    ),
-    _method(
-        "nano25_direct",
-        "google/gemini-2.5-flash-image",
-        "baseline",
-        "direct",
-        1,
-        "0.10",
-    ),
-    _method(
-        "nano31_direct",
-        "google/gemini-3.1-flash-image",
-        "baseline",
-        "direct",
-        1,
-        "0.18",
-    ),
-    _method(
-        "nano31_detail_board",
-        "google/gemini-3.1-flash-image",
-        "baseline",
-        "detail_board",
-        1,
-        "0.18",
-    ),
-    _method(
-        "seedream_direct",
-        "bytedance-seed/seedream-4.5",
-        "baseline",
-        "direct",
-        1,
-        "0.06",
-    ),
-    _method(
-        "seedream_detail_board",
-        "bytedance-seed/seedream-4.5",
-        "baseline",
-        "detail_board",
-        1,
-        "0.06",
-    ),
-    _method(
-        "gpt_image_1_mini_direct",
-        "openai/gpt-image-1-mini",
-        "baseline",
-        "direct",
-        1,
-        "0.30",
-    ),
-    _method(
-        "gpt_image_1_mini_detail_board",
-        "openai/gpt-image-1-mini",
-        "baseline",
-        "detail_board",
-        1,
-        "0.30",
-    ),
-    _method(
-        "gpt_image_2_direct",
-        "openai/gpt-image-2",
-        "baseline",
-        "direct",
-        1,
-        "0.80",
-    ),
-    _method(
-        "gpt_image_2_detail_board",
-        "openai/gpt-image-2",
-        "baseline",
-        "detail_board",
-        1,
-        "0.80",
-    ),
-    _method(
-        "nano31_two_pass_repair",
-        "google/gemini-3.1-flash-image",
-        "baseline",
-        "direct",
-        2,
-        "0.18",
-    ),
+_LITE = "google/gemini-3.1-flash-lite-image"
+_NANO25 = "google/gemini-2.5-flash-image"
+_NANO31 = "google/gemini-3.1-flash-image"
+_SEEDREAM = "bytedance-seed/seedream-4.5"
+_GPT1_MINI = "openai/gpt-image-1-mini"
+_GPT2 = "openai/gpt-image-2"
+
+SEARCH_METHODS = _methods(
+    (
+        ("lite_direct", _LITE, "baseline", "direct", 1, "0.06"),
+        ("lite_identity_prompt", _LITE, "identity", "direct", 1, "0.06"),
+        ("lite_detail_board", _LITE, "baseline", "detail_board", 1, "0.06"),
+        ("lite_two_pass_repair", _LITE, "baseline", "direct", 2, "0.06"),
+        ("nano25_direct", _NANO25, "baseline", "direct", 1, "0.10"),
+        ("nano31_direct", _NANO31, "baseline", "direct", 1, "0.18"),
+        ("nano31_detail_board", _NANO31, "baseline", "detail_board", 1, "0.18"),
+        ("seedream_direct", _SEEDREAM, "baseline", "direct", 1, "0.06"),
+        ("seedream_detail_board", _SEEDREAM, "baseline", "detail_board", 1, "0.06"),
+        ("gpt_image_1_mini_direct", _GPT1_MINI, "baseline", "direct", 1, "0.30"),
+        (
+            "gpt_image_1_mini_detail_board",
+            _GPT1_MINI,
+            "baseline",
+            "detail_board",
+            1,
+            "0.30",
+        ),
+        ("gpt_image_2_direct", _GPT2, "baseline", "direct", 1, "0.80"),
+        ("gpt_image_2_detail_board", _GPT2, "baseline", "detail_board", 1, "0.80"),
+        ("nano31_two_pass_repair", _NANO31, "baseline", "direct", 2, "0.18"),
+    )
 )
 
-TARGETED_METHODS = (
-    _method(
-        "lite_identity_negative",
-        "google/gemini-3.1-flash-lite-image",
-        "identity_negative",
-        "direct",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_tight_crop",
-        "google/gemini-3.1-flash-lite-image",
-        "baseline",
-        "tight_crop",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_garment_first",
-        "google/gemini-3.1-flash-lite-image",
-        "baseline",
-        "garment_first",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_duplicate_garment",
-        "google/gemini-3.1-flash-lite-image",
-        "baseline",
-        "duplicate_garment",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_background_removed",
-        "google/gemini-3.1-flash-lite-image",
-        "baseline",
-        "background_removed",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_identity_tight_crop",
-        "google/gemini-3.1-flash-lite-image",
-        "identity_negative",
-        "tight_crop",
-        1,
-        "0.06",
-    ),
-    _method(
-        "lite_identity_detail_board",
-        "google/gemini-3.1-flash-lite-image",
-        "identity_negative",
-        "detail_board",
-        1,
-        "0.06",
-    ),
+TARGETED_METHODS = _methods(
+    (
+        ("lite_identity_negative", _LITE, "identity_negative", "direct", 1, "0.06"),
+        ("lite_tight_crop", _LITE, "baseline", "tight_crop", 1, "0.06"),
+        ("lite_garment_first", _LITE, "baseline", "garment_first", 1, "0.06"),
+        (
+            "lite_duplicate_garment",
+            _LITE,
+            "baseline",
+            "duplicate_garment",
+            1,
+            "0.06",
+        ),
+        (
+            "lite_background_removed",
+            _LITE,
+            "baseline",
+            "background_removed",
+            1,
+            "0.06",
+        ),
+        (
+            "lite_identity_tight_crop",
+            _LITE,
+            "identity_negative",
+            "tight_crop",
+            1,
+            "0.06",
+        ),
+        (
+            "lite_identity_detail_board",
+            _LITE,
+            "identity_negative",
+            "detail_board",
+            1,
+            "0.06",
+        ),
+    )
 )
 
-METHOD_SETS = {
-    "broad": SEARCH_METHODS,
-    "targeted": TARGETED_METHODS,
-}
+METHOD_SETS = {"broad": SEARCH_METHODS, "targeted": TARGETED_METHODS}
 
 IDENTITY_PRIORITY_SUFFIX = """
 PRODUCT-IDENTITY PRIORITY:
@@ -292,12 +187,22 @@ def _rgb(path: Path) -> Image.Image:
     return background.convert("RGB")
 
 
+def _pixel(image: Image.Image, x: int, y: int) -> tuple[int, int, int]:
+    value = image.getpixel((x, y))
+    if not isinstance(value, tuple) or len(value) < 3:
+        raise ValueError("expected an RGB image")
+    channels = value[:3]
+    if not all(isinstance(channel, int) for channel in channels):
+        raise ValueError("expected integer RGB channels")
+    return cast(tuple[int, int, int], channels)
+
+
 def _background_color(image: Image.Image) -> tuple[int, int, int]:
     corners = (
-        image.getpixel((0, 0)),
-        image.getpixel((image.width - 1, 0)),
-        image.getpixel((0, image.height - 1)),
-        image.getpixel((image.width - 1, image.height - 1)),
+        _pixel(image, 0, 0),
+        _pixel(image, image.width - 1, 0),
+        _pixel(image, 0, image.height - 1),
+        _pixel(image, image.width - 1, image.height - 1),
     )
     average = tuple(
         round(sum(pixel[channel] for pixel in corners) / len(corners))
@@ -310,14 +215,16 @@ def _foreground_mask(image: Image.Image, threshold: int = 42) -> Image.Image:
     background = _background_color(image)
     threshold_squared = threshold * threshold
     mask = Image.new("L", image.size)
-    values = []
-    for red, green, blue in image.getdata():
-        distance = (
-            (red - background[0]) ** 2
-            + (green - background[1]) ** 2
-            + (blue - background[2]) ** 2
-        )
-        values.append(255 if distance > threshold_squared else 0)
+    values: list[int] = []
+    for y in range(image.height):
+        for x in range(image.width):
+            red, green, blue = _pixel(image, x, y)
+            distance = (
+                (red - background[0]) ** 2
+                + (green - background[1]) ** 2
+                + (blue - background[2]) ** 2
+            )
+            values.append(255 if distance > threshold_squared else 0)
     mask.putdata(values)
     return mask
 
