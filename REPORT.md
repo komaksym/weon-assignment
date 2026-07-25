@@ -2,86 +2,152 @@
 
 ## Executive summary
 
-The task is to compose a person, an environment, and a garment packshot while preserving product identity. I tested two practical improvement directions around a closed-source image model:
+The goal was to compose a person, an environment, and a garment packshot while preserving the garment as a specific product - not merely as the right category or color.
 
-1. **Structured garment prompting:** a VLM extracts visible garment attributes and injects them as hard constraints.
-2. **Best-of-two selection:** generate two structured candidates and use a VLM to select the stronger one.
+I tested four families of levers available around closed-source image models:
 
-The direct baseline was ultimately the best operational choice. On three development cases, a blinded VLM comparison tied all strategies at `0.8889`; ChatGPT visual-assessment means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Best-of-two cost roughly twice as much and was about ten times slower than baseline. The frozen baseline was therefore applied once to two holdouts without tuning or resampling.
+1. **Prompt engineering:** structured garment descriptions, identity-priority instructions, and explicit negative constraints.
+2. **Input conditioning:** tighter garment crops, background removal, detail boards, reference ordering, and duplicated garment evidence.
+3. **Pipeline design:** best-of-two selection and one garment-focused repair pass.
+4. **Model choice:** several image-generation models under one frozen evaluation contract.
 
-The H01 automatic result is not reported as a score because the evaluator incorrectly marked shoe silhouette as not applicable, violating the frozen source-level rubric and changing the denominator. H02 received a valid automatic score of `1.0000`; ChatGPT visual-assessment scores were H01 `0.5833` and H02 `0.7500`. The valid evidence still shows the central limitation: broad color, garment presence, and coarse silhouette are preserved reasonably well, while logos, exact construction, and material details remain unreliable and are often overestimated by a VLM judge.
+The result is negative but actionable: **none of the tested methods reliably beat direct Gemini 3.1 Flash Lite generation.** The strongest promoted pipeline scored `0.9750`, versus `0.9762` for the repeated direct control, while costing about twice as much. A later paired D01-D03 check tied direct generation with identity-plus-negative prompting at `1.0000` and placed identity-plus-tight-crop below both at `0.9667`.
+
+Those scores overstate real quality. Methods sometimes received `1.0000` while logos were unreadable, pocket and zipper geometry changed, shoe panels and soles drifted, and materials were simplified. The automatic judge was useful for rough screening, but it saturated before exact product fidelity was achieved.
+
+**Recommendation:** retain direct generation as the operational baseline. In production, add a cheap garment-region quality gate and escalate only failures to resampling, targeted repair, or human review.
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
-**Reviewer provenance:** the second visual-assessment path was performed by ChatGPT from the committed contact sheets. No independent human reviewer participated. These scores are therefore an AI-generated qualitative cross-check, not human validation.
+## 1. Failure-mode analysis
 
-## Failure-mode analysis
+The observed errors form a small, repeatable taxonomy:
 
-The observed failures form a compact taxonomy:
+- **Branding loss or hallucination:** logos and text disappear, become unreadable, or turn into approximate invented marks.
+- **Construction drift:** buttons, zippers, pockets, seams, panels, collars, soles, and closures move, simplify, or change count.
+- **Texture simplification:** suede/leather boundaries, technical fabric, waxed coating, corduroy, perforation, and stitching lose specificity.
+- **Color drift:** lighting and scene integration can move dark green toward olive/brown or flatten local color differences.
+- **Silhouette drift:** garment length, collar proportions, toe shape, sole thickness, and panel outline change.
+- **Evaluator overconfidence:** a general VLM often recognizes the right garment category and broad palette while missing identity-critical details.
+- **Applicability errors:** the evaluator may incorrectly mark a difficult dimension as not applicable, silently improving the denominator unless validated.
 
-- **Branding loss or hallucination:** logos and text disappear, become unreadable, or turn into approximate marks.
-- **Construction drift:** buttons, zippers, pockets, seams, panels, collars, soles, and closures move or simplify.
-- **Texture simplification:** suede/leather boundaries, technical fabric, waxed coating, corduroy, and stitching lose specificity.
-- **Color drift:** lighting can shift dark green toward brown/olive even when color is explicitly constrained.
-- **Evaluator overconfidence:** the VLM often rewards coarse visual similarity while missing absent branding and incorrect geometry.
-- **Applicability errors:** the evaluator may use `-1` to remove a difficult but applicable dimension from the denominator.
-- **Selection unreliability:** best-of-two tied frequently and selected candidate A deterministically; on D03, the ChatGPT visual assessment preferred B.
+This distinction is fundamental: a plausible pair of brown low-top shoes is not necessarily the referenced product. For a fashion brand, exact text, panel geometry, closures, and material boundaries are part of the identity.
 
-These failures matter because garment identity is not just category recognition. A plausible pair of brown shoes is not necessarily the referenced product.
+## 2. Methods and experiment design
 
-## Experiment design
+Five distinct assignment cases were used: D01-D03 for development and H01-H02 as frozen holdouts. The development cases were sampled repeatedly because image generation is stochastic; holdouts were run once after the initial strategy decision.
 
-Five cases were used: D01-D03 for development and H01-H02 as frozen holdouts. All images came from the assignment-provided set. The generator was `google/gemini-3.1-flash-lite-image` through OpenRouter, requesting one `1K`, `3:4` output. References were EXIF-oriented, resized to at most 1024 pixels, composited onto white when transparent, and encoded as JPEG quality 85.
+The main generator was `google/gemini-3.1-flash-lite-image` through OpenRouter, requesting one `1K`, `3:4` output. References were EXIF-oriented, resized in memory to at most 1024 pixels, composited onto white when transparent, and JPEG-encoded at quality 85.
 
-Each candidate was scored on six dimensions using `1 / 0.5 / 0 / -1`:
+The search included:
 
-- color;
-- print/logo;
-- silhouette/length;
-- construction details;
-- texture/material;
-- garment presence.
+- direct person + environment + garment generation;
+- VLM-derived structured garment attributes;
+- identity-priority and negative-constraint prompts;
+- tight garment crops and background-removed packshots;
+- garment-first reference ordering;
+- duplicate garment references as a crude weighting mechanism;
+- multi-panel detail boards;
+- best-of-two generation with blinded selection;
+- a second garment-focused repair pass;
+- alternative image models.
 
-`-1` means genuinely not applicable in the source and is excluded from the mean. Comparative evaluation uses opaque candidate IDs with a deterministic case-specific permutation, so the judge cannot infer which output is baseline or an attempted improvement. The frozen holdout path additionally validates evaluator `-1` values against a predeclared source-applicability mask before calculating any mean. Raw evaluator JSON is persisted before validation. A separate ChatGPT visual assessment uses the same six dimensions. It is a distinct AI judgment path, not an independent human evaluation.
+### Frozen evaluation
 
-## Development results
+Every final candidate was judged on six dimensions:
 
-| Strategy | Blinded automatic mean | ChatGPT visual-assessment mean | Average method cost | Average method latency |
-| --- | ---: | ---: | ---: | ---: |
-| Baseline | **0.8889** | **0.6833** | **$0.034466** | **5.48 s** |
-| Structured | **0.8889** | 0.6500 | $0.035331 | 8.16 s |
-| Best of two | **0.8889** | 0.6500 | $0.072624 | 54.89 s |
+1. color;
+2. print/logo;
+3. silhouette/length;
+4. construction details;
+5. texture/material;
+6. garment presence.
 
-Structured prompting did not produce a consistent fidelity gain. Best-of-two added a second generation and a comparison call but did not improve the ChatGPT visual-assessment aggregate. The baseline was frozen primarily because the blinded automatic comparison tied while baseline was simplest, cheapest, and fastest. Its small lead in the ChatGPT visual assessment was treated only as supplemental evidence.
+Scores were `1`, `0.5`, `0`, or `-1` only when the source truly made a dimension inapplicable. The final evaluator remained `openai/gpt-4.1-mini` with the same prompt, schema, applicability masks, and aggregation. Candidate IDs were opaque where comparison or selection occurred. Raw evaluator JSON was persisted before validation. Method selection had no access to H01-H02, no automatic retries, and no method-specific judge prompt or metric reweighting.
 
-## Frozen holdout results
+A separate ChatGPT visual assessment reviewed committed contact sheets using the same concepts. This was an AI sanity check, **not independent human evaluation**.
+
+## 3. Results
+
+### Operational comparison
+
+| Method | Automatic mean | Average cost | Average latency | Interpretation |
+| --- | ---: | ---: | ---: | --- |
+| `lite_direct` | **0.9762** | **$0.0360** | **8.53 s** | Best operational baseline |
+| `lite_duplicate_garment` | 0.9940 | $0.0365 | 9.00 s | Nominal stage-one leader, but no same-run baseline and no stable visual gain |
+| `lite_identity_tight_crop` | 0.9936 | $0.0360 | 8.76 s | Nominal stage-one result; later lost in paired check |
+| `identity_tight_crop_best_of_two` | 0.9750 | $0.0727 | 15.01 s | Essentially baseline score at roughly 2x cost |
+| `duplicate_garment_repair` | 0.9711 | $0.0708 | 13.16 s | More expensive and lower-scoring |
+
+The small stage-one lead for duplicated garment evidence and identity-plus-tight-crop was not a clean paired win because that run lacked a concurrent direct control. A later fixed D01-D03 block provided the direct comparison:
+
+| Same-run method | Automatic mean | Average cost | Average latency |
+| --- | ---: | ---: | ---: |
+| `lite_direct` | **1.0000** | $0.0358 | 8.94 s |
+| `lite_identity_negative` | **1.0000** | $0.0361 | 8.45 s |
+| `lite_identity_tight_crop` | 0.9667 | $0.0359 | 7.81 s |
+
+This tiny block does not prove that direct and identity-plus-negatives are truly equivalent. It does show that tight-crop conditioning did not reliably improve the baseline and that the automatic judge had reached a ceiling.
+
+A final duplicate-reference D01-D03 block also received `1.0000`. Visual inspection still found unreadable or incorrect branding, approximate shoe panel and sole construction, and drifted jacket pockets, closure, collar, seams, and material. A perfect score therefore meant "the judge could not distinguish the remaining errors," not "the garment was exact."
+
+### Initial controlled comparison and holdouts
+
+The initial development matrix compared direct generation, structured prompting, and structured best-of-two. The blinded automatic mean tied at `0.8889` for all three. ChatGPT visual-assessment means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Best-of-two cost roughly twice as much and was much slower, so direct generation was frozen for the holdouts.
 
 ![H01 footwear holdout](submission/figures/H01-contact-sheet.jpg)
 
 ![H02 shorts holdout](submission/figures/H02-contact-sheet.jpg)
 
-| Case | Automatic | ChatGPT visual assessment | Generation cost | Total experiment latency |
+| Holdout | Automatic result | ChatGPT visual assessment | Generation cost | Total latency |
 | --- | ---: | ---: | ---: | ---: |
-| H01 sneakers | **invalid — source N/A violation** | 0.5833 | $0.034466 | 8.43 s |
-| H02 shorts | 1.0000 | 0.7500 | $0.034934 | 10.25 s |
-| ChatGPT visual-assessment mean | — | **0.6667** | $0.034700 | 9.34 s |
+| H01 sneakers | Invalid - source applicability violation | 0.5833 | $0.0345 | 8.43 s |
+| H02 shorts | 1.0000 | 0.7500 | $0.0349 | 10.25 s |
 
-No two-case automatic mean is reported. The raw H01 evaluator response assigned `silhouette_length = -1`, claiming shoe shape was not applicable. The frozen source mask requires all six dimensions for both holdouts, so this result is retained for audit but rejected for aggregation.
+H01's evaluator response incorrectly assigned `silhouette_length = -1` to footwear. The predeclared source mask required that dimension, so the raw response was retained but rejected from aggregation. H02 preserved the broad color, length, double-button waist, belt loops, and cargo layout, but branding, zipper placement, panel geometry, stitching, and technical-fabric texture remained approximate.
 
-H01 preserved the brown/orange palette and low-top sneaker identity, but branding was not legible and the toe, sole, panel, and material details drifted. H02 preserved olive color, shorts length, the double-button waist, belt loops, and the broad cargo layout. Branding, zipper placement, panel geometry, stitching, and technical-fabric texture were only approximate.
+## 4. Practical conclusion and production design
 
-The frozen run used exactly two image requests and two evaluator requests, with no retries or resampling. Generation cost was `$0.06940025`; rough evaluation added `$0.0026784`. Results were frozen as observed. The durable contact sheets retain full-body context and add fixed garment-region crops. Crop coordinates are recorded in `submission/figures/crop-metadata.json` and do not affect generation or scoring.
+The direct Lite method is the correct baseline when the requirement is a fast, inexpensive first pass. It is **not** sufficient for brand-critical catalog production where exact logos, seams, closures, panels, or materials must match.
 
-## Practical conclusions
+The production system I would build is asymmetric:
 
-The baseline is a useful low-cost first pass when coarse garment identity is sufficient. It is not reliable enough for brand-critical catalog production where exact logos, seams, closures, or materials must match.
+```text
+Direct generation
+      |
+Garment-region quality gate
+      |
+      +-- pass --> deliver
+      |
+      +-- fail --> targeted repair or one resample
+                         |
+                         +-- still fail --> human review / reject
+```
 
-With more time, I would prioritize:
+The gate should not be one general VLM score. It should combine checks matched to the failure modes:
 
-1. garment-region crops as evaluator inputs, not only as review figures;
-2. explicit OCR/logo checks instead of relying on a general VLM score;
-3. deterministic image metrics for color and local structure alongside VLM judgment;
-4. targeted inpainting only on failed garment regions rather than full-image regeneration;
-5. a larger, stratified set covering text-heavy products, patterned garments, layered outfits, and small accessories.
+- OCR or logo matching for text-heavy products;
+- local color statistics on the garment crop;
+- crop-level visual embeddings for broad structure;
+- explicit VLM questions about pocket count, closures, buttons, and major panels;
+- source-applicability validation;
+- a calibrated reject threshold measured against independent human judgments.
 
-The main methodological lesson is that automatic evaluation must be blinded, applicability-validated, and audited through a separate review path. This experiment still lacks independent human evaluation, which remains a key limitation before production conclusions are drawn. In this experiment, the VLM was useful for orchestration and rough diagnostics, but not trustworthy as the sole measure of product fidelity.
+This keeps the common path near the baseline's `$0.036` and 8-9 second cost/latency, while spending extra calls only where evidence says the product identity is wrong. The experiments show that always-on best-of-two or repair is poor economics: it roughly doubles cost without a demonstrated gain.
+
+## 5. What I would do next
+
+With a fresh budget and independent raters, I would prioritize:
+
+1. **Garment-region evaluation inputs:** judge tight aligned crops rather than full scenes where the product occupies few pixels.
+2. **Explicit OCR/logo evaluation:** branding was the clearest blind spot of the general VLM judge.
+3. **A larger stratified set:** text-heavy garments, patterns, layered outfits, small accessories, reflective materials, and multiple views.
+4. **Independent human ratings:** use them to calibrate automatic thresholds and measure false acceptance, not merely average score.
+5. **Targeted repair only after failure localization:** inpaint or edit the garment region instead of regenerating the full scene.
+6. **Decision metrics:** report pass rate at a required fidelity threshold, cost per accepted image, and false-accept rate - not only a mean similarity score.
+
+## Limitations and disclosure
+
+This is a focused exploration, not a large benchmark. It uses five distinct cases with repeated development samples. No independent human reviewer participated. ChatGPT performed the second visual-assessment path and assisted with implementation, orchestration, analysis, and writing. Image outputs came from the tested generation models; automatic scores and best-of-two selection used GPT-4.1 Mini.
+
+The final vendor-key allowance observation was about `$0.03`. The provider balance endpoint showed delayed or non-monotonic values at very low balance, so per-request costs and committed workflow artifacts are treated as the durable accounting evidence.
