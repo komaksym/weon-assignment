@@ -162,7 +162,11 @@ def _decimal_cost(value: Decimal | None) -> Decimal:
 
 
 def _extension(media_type: str) -> str:
-    extensions = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+    extensions = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
     try:
         return extensions[media_type]
     except KeyError as exc:
@@ -223,24 +227,19 @@ def _generate(
     image_path = output_dir / f"image{_extension(result.media_type)}"
     image_path.write_bytes(result.image)
     cost = _decimal_cost(result.cost_usd)
-    (output_dir / "metadata.json").write_text(
-        json.dumps(
-            {
-                "label": label,
-                "model": model,
-                "prompt": prompt,
-                "references": reference_metadata,
-                "cost_usd": str(cost),
-                "latency_seconds": latency_seconds,
-                "balance_before_usd": str(before.remaining_usd),
-                "balance_after_usd": str(after.remaining_usd),
-                "output_media_type": result.media_type,
-                "image_file": image_path.name,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    metadata = {
+        "label": label,
+        "model": model,
+        "prompt": prompt,
+        "references": reference_metadata,
+        "cost_usd": str(cost),
+        "latency_seconds": latency_seconds,
+        "balance_before_usd": str(before.remaining_usd),
+        "balance_after_usd": str(after.remaining_usd),
+        "output_media_type": result.media_type,
+        "image_file": image_path.name,
+    }
+    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     return GeneratedCandidate(
         label=label,
         image_path=image_path,
@@ -291,23 +290,18 @@ def _select_best_of_two(
     winner_id, tie, summary = parse_selector(result.data)
     selected = candidates[mapping[winner_id]]
     raw_output_path.parent.mkdir(parents=True, exist_ok=True)
-    raw_output_path.write_text(
-        json.dumps(
-            {
-                "selector_model": SELECTOR_MODEL,
-                "prompt": SELECTOR_PROMPT,
-                "opaque_mapping": mapping,
-                "selector": result.data,
-                "selected_label": selected.label,
-                "cost_usd": str(result.cost_usd) if result.cost_usd is not None else None,
-                "latency_seconds": result.latency_seconds,
-                "balance_before_usd": str(before.remaining_usd),
-                "balance_after_usd": str(after.remaining_usd),
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    raw_output = {
+        "selector_model": SELECTOR_MODEL,
+        "prompt": SELECTOR_PROMPT,
+        "opaque_mapping": mapping,
+        "selector": result.data,
+        "selected_label": selected.label,
+        "cost_usd": str(result.cost_usd) if result.cost_usd is not None else None,
+        "latency_seconds": result.latency_seconds,
+        "balance_before_usd": str(before.remaining_usd),
+        "balance_after_usd": str(after.remaining_usd),
+    }
+    raw_output_path.write_text(json.dumps(raw_output, indent=2) + "\n")
     return selected, result, tie, summary, mapping
 
 
@@ -348,11 +342,11 @@ def _run_promotion_case(
         clock=clock,
     )
     generations = [first]
+    selected = first
     selector_result: JsonResult | None = None
     selector_tie: bool | None = None
     selector_summary = ""
     selector_map: dict[str, str] = {}
-    selected = first
 
     if method.mode == "best_of_two":
         second = _generate(
@@ -534,6 +528,16 @@ def _review_rows(rows: Sequence[dict[str, object]]) -> list[dict[str, object]]:
     ]
 
 
+def _method_reserve(method: PromotionMethod) -> tuple[int, Decimal]:
+    required_requests = 4 if method.mode == "best_of_two" else 3
+    combined_reserve = (
+        method.base_method.generation_reserve_usd * 2
+        + VLM_RESERVE_USD
+        + (VLM_RESERVE_USD if method.mode == "best_of_two" else Decimal("0"))
+    )
+    return required_requests, combined_reserve
+
+
 def run_promotion_search(
     *,
     cases_path: Path,
@@ -548,7 +552,7 @@ def run_promotion_search(
     allowance_getter: AllowanceGetter = get_key_allowance,
     clock: Clock = monotonic,
 ) -> Path:
-    """Run the fixed top-two promotion pipelines until the floor or cap."""
+    """Run fixed top-two promotion pipelines until the floor or request cap."""
 
     if output_root.exists():
         raise FileExistsError(f"output already exists: {output_root}")
@@ -570,29 +574,26 @@ def run_promotion_search(
         successful_this_round = 0
         attempted_this_round = 0
         for method in methods:
-            required_requests = 4 if method.mode == "best_of_two" else 3
-            combined_reserve = (
-                method.base_method.generation_reserve_usd * 2
-                + VLM_RESERVE_USD
-                + (VLM_RESERVE_USD if method.mode == "best_of_two" else Decimal("0"))
-            )
+            required_requests, combined_reserve = _method_reserve(method)
+            full_case_requests = required_requests * len(cases)
+            full_case_reserve = combined_reserve * len(cases)
+            current = allowance_getter(api_key)
+            if counter.count + full_case_requests > max_paid_requests:
+                stop_reason = "request_cap"
+                break
+            if not can_spend(current, full_case_reserve, floor_usd):
+                skips.append(
+                    {
+                        "method": method.name,
+                        "replicate": replicate,
+                        "reason": "full D01-D03 reserve would cross floor",
+                        "remaining_usd": str(current.remaining_usd),
+                        "full_case_reserve_usd": str(full_case_reserve),
+                    }
+                )
+                continue
+
             for case in cases:
-                current = allowance_getter(api_key)
-                if counter.count + required_requests > max_paid_requests:
-                    stop_reason = "request_cap"
-                    break
-                if not can_spend(current, combined_reserve, floor_usd):
-                    skips.append(
-                        {
-                            "method": method.name,
-                            "case_id": case.id,
-                            "replicate": replicate,
-                            "reason": "combined reserve would cross floor",
-                            "remaining_usd": str(current.remaining_usd),
-                            "combined_reserve_usd": str(combined_reserve),
-                        }
-                    )
-                    continue
                 attempted_this_round += 1
                 try:
                     row = _run_promotion_case(
@@ -633,8 +634,12 @@ def run_promotion_search(
                 successful_this_round += 1
             if stop_reason == "request_cap" and counter.count >= max_paid_requests:
                 break
+
         if successful_this_round == 0:
-            stop_reason = "floor_guard" if attempted_this_round == 0 else "no_successful_candidates"
+            if stop_reason != "request_cap":
+                stop_reason = (
+                    "floor_guard" if attempted_this_round == 0 else "no_successful_candidates"
+                )
             break
         replicate += 1
 
@@ -646,34 +651,30 @@ def run_promotion_search(
     _write_rows(output_root / "review_scores.csv", _review_rows(rows))
     (output_root / "failures.json").write_text(json.dumps(failures, indent=2) + "\n")
     (output_root / "skips.json").write_text(json.dumps(skips, indent=2) + "\n")
-    (output_root / "search_summary.json").write_text(
-        json.dumps(
-            {
-                "starting_allowance_usd": str(starting.remaining_usd),
-                "ending_allowance_usd": str(ending.remaining_usd),
-                "floor_usd": str(floor_usd),
-                "spent_usd": str(starting.remaining_usd - ending.remaining_usd),
-                "paid_requests": counter.count,
-                "successful_candidates": len(rows),
-                "failure_count": len(failures),
-                "skip_count": len(skips),
-                "replicates_started": replicate,
-                "stop_reason": stop_reason,
-                "winner": winner,
-                "promoted_stage_one_methods": [
-                    "lite_duplicate_garment",
-                    "lite_identity_tight_crop",
-                ],
-                "promotion_methods": [method.name for method in methods],
-                "selector_model": SELECTOR_MODEL,
-                "selector_prompt_frozen": True,
-                "evaluator_model": DEFAULT_EVALUATOR_MODEL,
-                "evaluation_prompt_frozen": True,
-                "holdout_requests": 0,
-                "automatic_retries": 0,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    summary = {
+        "starting_allowance_usd": str(starting.remaining_usd),
+        "ending_allowance_usd": str(ending.remaining_usd),
+        "floor_usd": str(floor_usd),
+        "spent_usd": str(starting.remaining_usd - ending.remaining_usd),
+        "paid_requests": counter.count,
+        "successful_candidates": len(rows),
+        "failure_count": len(failures),
+        "skip_count": len(skips),
+        "replicates_started": replicate,
+        "stop_reason": stop_reason,
+        "winner": winner,
+        "promoted_stage_one_methods": [
+            "lite_duplicate_garment",
+            "lite_identity_tight_crop",
+        ],
+        "promotion_methods": [method.name for method in methods],
+        "selector_model": SELECTOR_MODEL,
+        "selector_prompt_frozen": True,
+        "evaluator_model": DEFAULT_EVALUATOR_MODEL,
+        "evaluation_prompt_frozen": True,
+        "complete_case_blocks_required": True,
+        "holdout_requests": 0,
+        "automatic_retries": 0,
+    }
+    (output_root / "search_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return output_root
