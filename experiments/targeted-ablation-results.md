@@ -4,7 +4,7 @@
 
 Stop paid exploration and keep `lite_direct` as the operational baseline.
 
-The targeted stage-one screen produced two nominal automatic leaders, `lite_duplicate_garment` and `lite_identity_tight_crop`, but neither is proven to beat the baseline in a practically meaningful way. The fixed promotion stage made both approaches more expensive and did not improve their aggregate automatic score. A separate ChatGPT visual audit of repeated outputs also found no consistent visible winner.
+The targeted stage-one screen produced two nominal automatic leaders, `lite_duplicate_garment` and `lite_identity_tight_crop`, but neither is proven to beat the baseline in a practically meaningful way. The fixed promotion stage made both approaches more expensive and did not improve their aggregate automatic score. A final three-case duplicate-reference screen received a perfect judge score while still showing visible identity errors, strengthening the evidence that the evaluator is saturated.
 
 This is a negative result, not a failed experiment: the search answered the useful question. Cheap reference-conditioning tricks can move a saturated VLM score slightly, but the tested methods still do not reliably preserve exact product identity.
 
@@ -42,7 +42,7 @@ The promoted methods were:
 1. `lite_duplicate_garment` — automatic mean `0.9940476`, average cost `$0.036461`, average latency `9.00 s`;
 2. `lite_identity_tight_crop` — automatic mean `0.9935897`, average cost `$0.036001`, average latency `8.76 s`.
 
-The original stage-one run did not contain a concurrent `lite_direct` control. That control was added afterward, but the later run `30150811083` started with only `$0.4639548`, below its `$5.25` floor, and correctly spent `$0`. Therefore the small stage-one score difference must not be presented as a paired baseline win.
+The original stage-one run did not contain a concurrent `lite_direct` control. That control was added afterward, but run `30150811083` started below its `$5.25` floor and correctly spent `$0`. Therefore the small stage-one score difference must not be presented as a paired baseline win.
 
 ### Promotion
 
@@ -68,9 +68,23 @@ Promotion results:
 
 For context, the earlier broad search measured `lite_direct` at `0.9761905`, average cost `$0.036010`, and average latency `8.53 s`. The promotion winner was therefore roughly twice as expensive while scoring essentially the same as that prior direct control.
 
+### Final remaining-conditioning screen
+
+A one-use screen had already been opened separately and completed in run `30151206748`, artifact `remaining-conditioning-screen-30151206748`:
+
+- starting allowance: `$0.1404595`;
+- ending allowance: `$0.03133895`;
+- spend: `$0.10912055`;
+- paid requests: `10`;
+- valid candidates: `3`;
+- failed evaluator calls: `2` because the key could not afford the requested maximum tokens;
+- stop reason: floor guard.
+
+Only one complete `lite_duplicate_garment` block survived, scoring `1.0000` on D01-D03. The planned detail-board comparison did not complete, so this cannot establish a comparative winner. More importantly, visual inspection still found incorrect or unreadable branding, approximate shoe panel/sole geometry, and drifted jacket pocket, closure, collar, and material details. The perfect score is direct evidence of judge saturation, not proof of exact garment preservation.
+
 ## Visual audit
 
-ChatGPT inspected garment-region contact sheets containing six repeated outputs per method for `D01-D03`. This was an AI visual assessment, not independent human review.
+ChatGPT inspected garment-region contact sheets containing six repeated outputs per main method for `D01-D03`, plus the final three duplicate-reference outputs. This was an AI visual assessment, not independent human review.
 
 The automatic scores were visibly overconfident:
 
@@ -88,13 +102,14 @@ A method counts as better only when the gain is material, visibly real, and wort
 2. valid sample counts were unequal because the frozen applicability validator rejected evaluator mistakes;
 3. the judge frequently assigned perfect or near-perfect scores to images with visible branding and construction errors;
 4. promotion approximately doubled cost and still failed to exceed the prior direct-control score;
-5. visual inspection showed no stable product-identity improvement.
+5. the final perfect-score block visibly retained the same product-identity failures;
+6. visual inspection showed no stable product-identity improvement.
 
 ## Final recommendation
 
 Use `lite_direct` when coarse garment identity is sufficient. Do not claim any tested method is reliable for brand-critical catalog work.
 
-For a future, separately budgeted study, the only candidates worth carrying forward are `lite_duplicate_garment` and `lite_identity_tight_crop`, evaluated on a larger case set with a concurrent baseline, garment-region review, explicit OCR/logo checks, and independent human raters. Do not spend the remaining allowance on another tiny D01-D03 run.
+For a future, separately budgeted study, the only candidates worth carrying forward are `lite_duplicate_garment` and `lite_identity_tight_crop`, evaluated on a larger case set with a concurrent baseline, garment-region review, explicit OCR/logo checks, and independent human raters. The remaining allowance is about `$0.03`, so no further meaningful paid run should be attempted.
 
 ```mermaid
 flowchart LR
@@ -103,8 +118,9 @@ flowchart LR
     C --> D[Best-of-two and repair]
     D --> E[Automatic scores saturate]
     D --> F[Visual identity errors persist]
-    E --> G[Stop: baseline not beaten]
+    E --> G[Final perfect-score sanity check]
     F --> G
+    G --> H[Stop: baseline not beaten]
 ```
 
 ## AI disclosure
