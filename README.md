@@ -28,6 +28,8 @@ A same-run D01-D03 control gave `lite_direct = 1.0000`, identity plus negative c
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
+The compact image above is report-only. Use the dedicated [author human-review protocol](submission/HUMAN_REVIEW.md) and its high-resolution sheets for actual garment-detail scoring. The sheets are prepared; numeric author ratings are pending and will be recorded separately.
+
 ## What was tested
 
 The search covered four distinct levers around closed-source models:
@@ -53,12 +55,14 @@ The final evaluator was frozen before paid execution:
 - no holdout access during method selection;
 - no retries or score-driven prompt changes.
 
-A separate ChatGPT visual assessment was used as a sanity check. It was **not** independent human evaluation. The disagreement between visual errors and near-perfect automatic scores is itself a central result.
+A separate ChatGPT visual assessment was used as a sanity check. It was **not** independent human evaluation. A human sanity-check path is now prepared using the same six dimensions and full-resolution evidence; its pending ratings will be attributed to the assignment author rather than presented as independent review.
 
 ## Repository map
 
 - [`REPORT.md`](REPORT.md) - final 10-minute report.
-- [`submission/figures/`](submission/figures/) - durable before/after and holdout contact sheets.
+- [`submission/HUMAN_REVIEW.md`](submission/HUMAN_REVIEW.md) - author-review protocol and blank rating form.
+- [`submission/review/`](submission/review/) - high-resolution D01-D03 and H01-H02 review sheets.
+- [`submission/figures/`](submission/figures/) - compact report figures.
 - [`experiments/`](experiments/) - detailed execution records, metrics, costs, and evaluator caveats.
 - [`src/weon_eval/`](src/weon_eval/) - generation, evaluation, search, and reporting code.
 - [`tests/`](tests/) - deterministic tests; no test performs a paid API call.
@@ -99,7 +103,7 @@ uv run weon-prepare-inputs H02 --allow-holdout
 uv run weon-holdout
 ```
 
-Raw assignment inputs and standalone generated outputs are not committed. Compact metrics, experiment records, and compressed contact sheets are durable in the repository.
+Raw assignment inputs and standalone generated outputs are not committed. Compact report figures and high-resolution composite review sheets preserve the durable visual evidence.
 
 ## Validation
 
@@ -116,6 +120,6 @@ Normal CI never performs a paid model request. Paid workflows first run dependen
 
 - The study has five distinct cases, with repeated development samples rather than a large benchmark.
 - The automatic judge saturated and overestimated exact product fidelity.
-- No independent human reviewer participated.
+- No independent human reviewer participated. Author human ratings are prepared but not yet recorded.
 - Image generation, automatic scoring, and analysis used AI systems; their roles are documented in the report and experiment records.
 - The last observed vendor-key allowance was about `$0.03`; no further meaningful paid run is justified.

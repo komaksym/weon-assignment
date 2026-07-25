@@ -1,6 +1,6 @@
 # Garment-consistency experiment plan
 
-**Summary:** The four-slice assignment and the follow-up development-only extension are complete. No tested method reliably improved on direct generation, the automatic evaluator saturated before exact product fidelity, and paid exploration stopped with direct generation retained as the operational baseline.
+**Summary:** The four-slice assignment and the follow-up development-only extension are complete. No tested method reliably improved on direct generation, the automatic evaluator saturated before exact product fidelity, and paid exploration stopped with direct generation retained as the operational baseline. High-resolution author-review materials are prepared; numeric ratings are pending.
 
 ```mermaid
 flowchart LR
@@ -11,6 +11,7 @@ flowchart LR
     B --> T[Targeted conditioning search ✓]
     T --> P[Promotion + paired control ✓]
     P --> D[Stop: baseline not beaten ✓]
+    D --> H[Author review sheets ready; ratings pending]
 ```
 
 ## Slice 1 — experiment foundation
@@ -75,11 +76,22 @@ flowchart LR
 
 **Final decision:** No tested method is claimed to beat direct generation. The evaluator saturated before exact garment identity was preserved, so paid exploration stopped. Keep `lite_direct` as the operational baseline and add garment-region OCR/logo, construction-detail, and material checks before selective repair, resampling, or human review.
 
+## Author human review
+
+**Status:** high-resolution evidence and rating protocol complete; ratings pending.
+
+**Scope:** D01-D03 baseline, structured, and best-of-two outputs plus the frozen H01-H02 baseline outputs. The reviewer will use the same six dimensions and will be identified as the assignment author, not an independent rater.
+
+**Evidence:** The review sheets were rebuilt from the original full-resolution development run `30102014361` and holdout run `30113526488`. No model call, output, score, cost, or experiment decision changed.
+
+**Next step:** Record the raw author ratings, method means, holdout results, and qualitative conclusions without replacing or retuning the frozen automatic and ChatGPT evidence.
+
 ## Evaluation integrity and provenance
 
 - The final evaluator remained `openai/gpt-4.1-mini` with the same six-dimension rubric, fixed source-level applicability masks, opaque candidate identifiers where required, unchanged aggregation, and raw JSON persisted before validation.
 - No automatic retry, score-driven prompt change, method-specific judge prompt, or holdout-driven tuning was used.
-- ChatGPT produced the visual-assessment scores from committed contact sheets. No independent human evaluator participated; this is an explicit limitation of the evidence.
+- ChatGPT produced the existing visual-assessment scores from committed contact sheets. No independent human evaluator participated; this remains an explicit limitation.
+- Author human ratings are pending and will be stored as a separate attributed evidence path.
 - Perfect or near-perfect automatic scores were treated as evaluator-ceiling evidence, not proof of exact product fidelity.
 
 ## Budget and stopping state
@@ -95,4 +107,4 @@ flowchart LR
 - H01 and H02 remained ungenerated until the development winner and rubric were committed.
 - The follow-up search did not access or rerun H01/H02.
 - API keys, raw inputs, and standalone generated images are not committed.
-- Compressed crop-enhanced contact sheets remain as durable submission visual evidence.
+- Compact report figures and high-resolution composite review sheets preserve durable visual evidence.
