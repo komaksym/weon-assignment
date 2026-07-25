@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Human garment review</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Human garment review</h1>
+        <p class="subtitle">Score product fidelity, not model or scene quality.</p>
+      </div>
+      <div class="topbar-status">
+        <strong id="progress-text">Loading…</strong>
+        <span id="save-status" class="save-status" role="status" aria-live="polite">Loading</span>
+      </div>
+    </header>
+
+    <main>
+      <section id="review-view" class="review-layout" aria-label="Current review target">
+        <section class="evidence-region">
+          <div class="evidence-heading">
+            <div>
+              <span id="split-label" class="split-label"></span>
+              <h2 id="target-title">Loading review…</h2>
+            </div>
+            <div class="zoom-controls" aria-label="Evidence zoom">
+              <button type="button" data-zoom="fit" class="zoom-button is-active">Fit</button>
+              <button type="button" data-zoom="native" class="zoom-button">100%</button>
+              <button type="button" data-zoom="large" class="zoom-button">150%</button>
+            </div>
+          </div>
+          <div id="evidence-frame" class="evidence-frame zoom-fit">
+            <img id="evidence-image" alt="High-resolution garment review evidence">
+          </div>
+          <p class="evidence-help">Use the garment crop and detail zoom first. The full scene is context only. Click the image to toggle Fit and 100%.</p>
+        </section>
+
+        <aside class="scoring-region">
+          <div class="focus-panel">
+            <h3>Check these details</h3>
+            <ul id="focus-list"></ul>
+          </div>
+
+          <section class="fast-score" aria-labelledby="fast-score-title">
+            <div class="section-heading">
+              <div>
+                <h3 id="fast-score-title">Fast score</h3>
+                <p>One click fills all six dimensions and moves on.</p>
+              </div>
+            </div>
+            <div class="preset-grid">
+              <button id="preserved-next" type="button" class="preset preset-good">
+                <strong>Preserved</strong><span>All 1</span>
+              </button>
+              <button id="partial-next" type="button" class="preset preset-partial">
+                <strong>Partial drift</strong><span>All 0.5</span>
+              </button>
+              <button id="major-next" type="button" class="preset preset-bad">
+                <strong>Major drift</strong><span>All 0</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="dimension-section" aria-labelledby="dimension-title">
+            <div class="section-heading inline-heading">
+              <div>
+                <h3 id="dimension-title">Correct individual dimensions</h3>
+                <p>Only touch these when the preset is not accurate.</p>
+              </div>
+              <span id="current-mean" class="mean-badge">Mean —</span>
+            </div>
+            <div id="dimension-list" class="dimension-list"></div>
+          </section>
+
+          <section class="issue-section" aria-labelledby="issue-title">
+            <h3 id="issue-title">Visible issue <span class="optional">optional</span></h3>
+            <div id="issue-tags" class="tag-list"></div>
+            <label class="note-label" for="note">One concise note</label>
+            <textarea id="note" rows="2" maxlength="240" placeholder="Example: logo is unreadable and zipper moved"></textarea>
+          </section>
+
+          <nav class="review-nav" aria-label="Review navigation">
+            <button id="previous-button" type="button" class="secondary-button">Previous</button>
+            <button id="next-button" type="button" class="primary-button">Save &amp; next</button>
+          </nav>
+        </aside>
+      </section>
+
+      <section id="summary-view" class="summary-view" hidden>
+        <div class="summary-header">
+          <div>
+            <h2>Review summary</h2>
+            <p id="summary-completion"></p>
+          </div>
+          <button id="back-to-review" type="button" class="secondary-button">Back to ratings</button>
+        </div>
+
+        <div class="summary-grid">
+          <section class="summary-panel">
+            <h3>Development method means</h3>
+            <div id="method-summary" class="metric-list"></div>
+          </section>
+          <section class="summary-panel">
+            <h3>Frozen holdouts</h3>
+            <div id="holdout-summary" class="metric-list"></div>
+          </section>
+        </div>
+
+        <section class="summary-panel reviewer-panel">
+          <h3>Reviewer attribution</h3>
+          <div class="field-grid">
+            <label>Name<input id="rater-name" type="text"></label>
+            <label>Review date<input id="review-date" type="date"></label>
+          </div>
+          <p class="disclosure">This remains an attributed author sanity check, not independent or multi-rater evaluation.</p>
+        </section>
+
+        <section class="summary-panel overall-panel">
+          <h3>Overall judgments</h3>
+          <div id="overall-questions"></div>
+        </section>
+
+        <section class="export-panel">
+          <div>
+            <h3>Export durable results</h3>
+            <p>Exports include raw scores, calculated means, method identities, holdouts, notes, and attribution.</p>
+          </div>
+          <div class="export-actions">
+            <a class="secondary-button" href="/api/export/ratings.json" download>JSON</a>
+            <a class="secondary-button" href="/api/export/ratings.csv" download>CSV</a>
+            <a class="primary-button" href="/api/export/report.md" download>Submission Markdown</a>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <template id="dimension-template">
+    <div class="dimension-row">
+      <span class="dimension-name"></span>
+      <div class="score-options" role="radiogroup"></div>
+    </div>
+  </template>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

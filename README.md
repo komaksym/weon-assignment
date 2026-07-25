@@ -28,7 +28,7 @@ A same-run D01-D03 control gave `lite_direct = 1.0000`, identity plus negative c
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
-The compact image above is report-only. Use the dedicated [author human-review protocol](submission/HUMAN_REVIEW.md) and its high-resolution sheets for actual garment-detail scoring. The sheets are prepared; numeric author ratings are pending and will be recorded separately.
+The compact image above is report-only. Use the dedicated [author human-review protocol](submission/HUMAN_REVIEW.md), local rating app, and high-resolution sheets for actual garment-detail scoring. The sheets and evaluator are prepared; numeric author ratings are pending and will be recorded separately.
 
 ## What was tested
 
@@ -55,16 +55,16 @@ The final evaluator was frozen before paid execution:
 - no holdout access during method selection;
 - no retries or score-driven prompt changes.
 
-A separate ChatGPT visual assessment was used as a sanity check. It was **not** independent human evaluation. A human sanity-check path is now prepared using the same six dimensions and full-resolution evidence; its pending ratings will be attributed to the assignment author rather than presented as independent review.
+A separate ChatGPT visual assessment was used as a sanity check. It was **not** independent human evaluation. The human sanity-check path uses the same six dimensions and full-resolution evidence; its ratings will be attributed to the assignment author rather than presented as independent review.
 
 ## Repository map
 
 - [`REPORT.md`](REPORT.md) - final 10-minute report.
-- [`submission/HUMAN_REVIEW.md`](submission/HUMAN_REVIEW.md) - author-review protocol and blank rating form.
+- [`submission/HUMAN_REVIEW.md`](submission/HUMAN_REVIEW.md) - app workflow, rubric, attribution, and recording contract.
 - [`submission/review/`](submission/review/) - high-resolution D01-D03 and H01-H02 review sheets.
-- [`submission/figures/`](submission/figures/) - compact report figures.
+- [`submission/figures/`](submission/figures/) - compact report figures and UI evidence.
 - [`experiments/`](experiments/) - detailed execution records, metrics, costs, and evaluator caveats.
-- [`src/weon_eval/`](src/weon_eval/) - generation, evaluation, search, and reporting code.
+- [`src/weon_eval/`](src/weon_eval/) - generation, evaluation, search, reporting, and local human-review code.
 - [`tests/`](tests/) - deterministic tests; no test performs a paid API call.
 - [`specs/`](specs/) - precommitted experiment contracts.
 
@@ -78,14 +78,24 @@ cp .env.example .env
 export OPENROUTER_API_KEY="..."
 ```
 
-Prepare and run one direct baseline case:
+### Complete the author human review
+
+No API key or paid request is needed:
+
+```bash
+uv run weon-human-review
+```
+
+The command opens a local one-target-at-a-time evaluator, auto-saves progress to `submission/human-review-ratings.json`, resumes incomplete work, and exports JSON, CSV, and submission-ready Markdown.
+
+### Prepare and run one direct baseline case
 
 ```bash
 uv run weon-prepare-inputs D01
 uv run weon-eval D01
 ```
 
-Reproduce the fixed development comparison:
+### Reproduce the fixed development comparison
 
 ```bash
 for case_id in D01 D02 D03; do

@@ -1,6 +1,6 @@
 # Garment-consistency experiment plan
 
-**Summary:** The four-slice assignment and the follow-up development-only extension are complete. No tested method reliably improved on direct generation, the automatic evaluator saturated before exact product fidelity, and paid exploration stopped with direct generation retained as the operational baseline. High-resolution author-review materials are prepared; numeric ratings are pending.
+**Summary:** The four-slice assignment and the follow-up development-only extension are complete. No tested method reliably improved on direct generation, the automatic evaluator saturated before exact product fidelity, and paid exploration stopped with direct generation retained as the operational baseline. High-resolution author-review materials and a dependency-free local rating app are ready; numeric ratings are pending.
 
 ```mermaid
 flowchart LR
@@ -11,7 +11,9 @@ flowchart LR
     B --> T[Targeted conditioning search ✓]
     T --> P[Promotion + paired control ✓]
     P --> D[Stop: baseline not beaten ✓]
-    D --> H[Author review sheets ready; ratings pending]
+    D --> H[Crop-first review sheets ✓]
+    H --> UI[Local author-review app ✓]
+    UI --> R[Author ratings pending]
 ```
 
 ## Slice 1 — experiment foundation
@@ -78,13 +80,15 @@ flowchart LR
 
 ## Author human review
 
-**Status:** high-resolution evidence and rating protocol complete; ratings pending.
+**Status:** crop-first evidence, frozen rubric, and local rating app complete; ratings pending.
 
-**Scope:** D01-D03 baseline, structured, and best-of-two outputs plus the frozen H01-H02 baseline outputs. The reviewer will use the same six dimensions and will be identified as the assignment author, not an independent rater.
+**Scope:** D01-D03 baseline, structured, and best-of-two outputs plus the frozen H01-H02 baseline outputs. The reviewer uses the same six dimensions and is identified as the assignment author, not an independent rater.
 
 **Evidence:** The review sheets were rebuilt from the original full-resolution development run `30102014361` and holdout run `30113526488`. No model call, output, score, cost, or experiment decision changed.
 
-**Next step:** Record the raw author ratings, method means, holdout results, and qualitative conclusions without replacing or retuning the frozen automatic and ChatGPT evidence.
+**Tooling:** `uv run weon-human-review` opens a one-target-at-a-time local evaluator. One-click presets fill all six frozen dimensions, individual corrections remain available, every edit auto-saves atomically, and JSON/CSV/Markdown exports retain raw ratings, method means, holdouts, notes, and attribution.
+
+**Next step:** Complete the app, commit `submission/human-review-ratings.json` and the exported Markdown, then compare the attributed author scores against the frozen automatic and ChatGPT evidence without retuning either path.
 
 ## Evaluation integrity and provenance
 
@@ -103,7 +107,8 @@ flowchart LR
 
 ## Constraints honored
 
-- No fine-tuning, UI, deployment, database, dashboard, generalized benchmark framework, or production orchestration.
+- No fine-tuning, deployment, database, generalized benchmark framework, or production orchestration.
+- The human-review UI is local-only, dependency-free, and limited to the frozen author-review workflow.
 - H01 and H02 remained ungenerated until the development winner and rubric were committed.
 - The follow-up search did not access or rerun H01/H02.
 - API keys, raw inputs, and standalone generated images are not committed.
