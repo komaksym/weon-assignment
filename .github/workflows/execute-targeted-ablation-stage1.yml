@@ -1,0 +1,20 @@
+name: Execute targeted ablation stage one
+
+on:
+  pull_request:
+    branches: [experiment/targeted-ablation-search]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  execute:
+    if: ${{ github.head_ref == 'execute/targeted-ablation-stage1' }}
+    uses: ./.github/workflows/run-targeted-ablation-search.yml
+    with:
+      confirm_paid_run: true
+      floor_usd: "5.25"
+      max_paid_requests: 300
+    secrets:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
