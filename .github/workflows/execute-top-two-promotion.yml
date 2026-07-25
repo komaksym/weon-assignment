@@ -1,0 +1,16 @@
+name: Execute top-two promotion once
+
+on:
+  pull_request:
+    branches: [experiment/targeted-ablation-search]
+
+jobs:
+  execute:
+    if: ${{ github.head_ref == 'execute/top-two-promotion-search' }}
+    uses: ./.github/workflows/run-promotion-search.yml
+    with:
+      confirm_paid_run: true
+      floor_usd: "0.30"
+      max_paid_requests: 300
+    secrets:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
