@@ -1,44 +1,70 @@
-# WEON Garment Consistency Evaluation
+# WEON Garment Consistency Experiment
 
-A focused experiment on preserving garment identity in black-box AI photoshoots.
+A black-box image-generation study of one practical question:
 
-The repository compares a direct baseline with structured garment prompting and best-of-two selection on three development cases, then applies the frozen winner once to two holdouts. Start with [REPORT.md](REPORT.md) for the results and conclusions.
+> Can prompt, reference-conditioning, model, or multi-step pipeline changes preserve exact garment identity better than a direct generation baseline?
 
-## Final result
+## Final verdict
 
-The direct baseline was selected:
+**No tested method demonstrated a reliable improvement over the direct baseline.**
 
-- development blinded automatic mean: `0.8889` for every strategy;
-- development ChatGPT visual-assessment mean: baseline `0.6833`, structured `0.6500`, best-of-two `0.6500`;
-- holdout automatic scoring: H01 invalid under the frozen applicability mask; H02 `1.0000`; no two-case automatic mean is reported;
-- holdout ChatGPT visual-assessment mean: `0.6667`;
-- holdout generation cost: `$0.06940025` for two images;
-- holdout generation latency: `13.1647 s` total.
+The strongest promoted pipeline scored essentially the same as direct generation while costing about twice as much. Several methods received perfect or near-perfect automatic scores despite visibly incorrect logos, closures, panels, and materials. The operational recommendation is therefore:
 
-The visual-assessment scores were assigned by ChatGPT from the contact sheets. No independent human evaluator participated, so these scores are supplemental AI-generated evidence rather than human validation.
+- use `lite_direct` for a low-cost first pass when coarse garment identity is sufficient;
+- do not treat the current output as reliable for brand-critical catalog work;
+- gate production output with garment-region checks, especially OCR/logo and construction-detail checks;
+- repair or resample only candidates that fail those checks.
 
-Broad color, garment presence, and coarse silhouette were generally preserved. Logos, exact construction, and material details remained unreliable. The H01 evaluator also attempted to remove shoe silhouette from the denominator, confirming that rough VLM scores require applicability validation and a separate review path.
+| Method | Automatic mean | Average cost | Average latency | Decision |
+| --- | ---: | ---: | ---: | --- |
+| `lite_direct` | **0.9762** | **$0.0360** | **8.53 s** | Keep as baseline |
+| `lite_duplicate_garment` | 0.9940 | $0.0365 | 9.00 s | Nominal unpaired lead; not visually reliable |
+| `lite_identity_tight_crop` | 0.9936 | $0.0360 | 8.76 s | Lost in the later paired check |
+| `identity_tight_crop_best_of_two` | 0.9750 | $0.0727 | 15.01 s | No gain at roughly 2x cost |
 
-```mermaid
-flowchart LR
-    A[Assignment references] --> B[Validated compact inputs]
-    B --> C[D01-D03 strategy comparison]
-    C --> D[Blinded VLM + ChatGPT visual assessment]
-    D --> E[Freeze direct baseline]
-    E --> F[One H01-H02 run]
-    F --> G[Rubric validation + report + detail crops]
-```
+A same-run D01-D03 control gave `lite_direct = 1.0000`, identity plus negative constraints `= 1.0000`, and identity plus tight crop `= 0.9667`. The perfect scores were not trustworthy: visual review still found product-identity errors.
 
-## Repository guide
+**Start with [REPORT.md](REPORT.md).** It is the short submission report and includes the failure taxonomy, methods, frozen evaluation, visual evidence, results, limitations, and production recommendation.
 
-- `REPORT.md` — final 1–4 page-equivalent technical report.
-- `experiments/slice-3-development.md` — development evidence and winner decision.
-- `experiments/slice-4-holdout.md` — frozen holdout evidence.
-- `submission/figures/` — compressed comparison visuals with durable garment-detail crops and recorded coordinates.
-- `specs/` — fixed slice specifications.
-- `src/weon_eval/` — runnable experiment code.
+![Development comparison](submission/figures/development-comparison.jpg)
 
-## Setup
+## What was tested
+
+The search covered four distinct levers around closed-source models:
+
+1. **Prompt engineering** - structured garment descriptions, identity-priority instructions, and explicit negative constraints.
+2. **Input conditioning** - tight crops, background removal, detail boards, reference ordering, and duplicated garment references.
+3. **Pipeline design** - best-of-two selection and a garment-focused repair pass.
+4. **Model comparison** - multiple image models under the same frozen evaluation contract.
+
+Five distinct assignment cases were used: D01-D03 for development and H01-H02 as frozen holdouts. Development cases were sampled repeatedly to estimate stochastic behavior.
+
+## Evaluation contract
+
+The final evaluator was frozen before paid execution:
+
+- evaluator: `openai/gpt-4.1-mini`;
+- dimensions: color, print/logo, silhouette/length, construction details, texture/material, and presence;
+- scores: `1`, `0.5`, `0`, or `-1` only when genuinely not applicable;
+- source-level applicability masks;
+- opaque candidate IDs where comparison or selection was used;
+- unchanged aggregation;
+- raw evaluator JSON persisted before validation;
+- no holdout access during method selection;
+- no retries or score-driven prompt changes.
+
+A separate ChatGPT visual assessment was used as a sanity check. It was **not** independent human evaluation. The disagreement between visual errors and near-perfect automatic scores is itself a central result.
+
+## Repository map
+
+- [`REPORT.md`](REPORT.md) - final 10-minute report.
+- [`submission/figures/`](submission/figures/) - durable before/after and holdout contact sheets.
+- [`experiments/`](experiments/) - detailed execution records, metrics, costs, and evaluator caveats.
+- [`src/weon_eval/`](src/weon_eval/) - generation, evaluation, search, and reporting code.
+- [`tests/`](tests/) - deterministic tests; no test performs a paid API call.
+- [`specs/`](specs/) - precommitted experiment contracts.
+
+## Run locally
 
 Requirements: Python 3.12+ and `uv`.
 
@@ -48,28 +74,14 @@ cp .env.example .env
 export OPENROUTER_API_KEY="..."
 ```
 
-Inputs are ignored by Git and downloaded from the assignment-provided source manifest. During generation, originals remain unchanged. Each reference is EXIF-oriented, resized in memory to at most 1024 pixels, composited onto white when transparent, encoded as JPEG quality 85, and recorded in metadata.
-
-## Run one baseline
+Prepare and run one direct baseline case:
 
 ```bash
 uv run weon-prepare-inputs D01
 uv run weon-eval D01
 ```
 
-The default generator is `google/gemini-3.1-flash-lite-image`. It requests one `1K`, `3:4` image with references ordered as person, environment, and garment packshot(s).
-
-Output:
-
-```text
-outputs/<case>/<model>/<strategy>/
-├── image.<jpg|png|webp>
-└── metadata.json
-```
-
-Generated bytes are decoded and validated before persistence. JPEG, PNG, and WebP are supported, and the actual format must agree with any provider-declared media type.
-
-## Reproduce the development matrix
+Reproduce the fixed development comparison:
 
 ```bash
 for case_id in D01 D02 D03; do
@@ -79,35 +91,7 @@ done
 uv run weon-development
 ```
 
-The fixed matrix makes nine image requests and six VLM requests with no retries or holdout access. It compares:
-
-1. `baseline` — one direct generation;
-2. `structured` — packshot attributes injected as hard prompt constraints;
-3. `best_of_two` — two structured candidates with VLM selection.
-
-Comparative scoring uses opaque candidate IDs and a deterministic case-specific permutation. The six dimensions are color, print/logo, silhouette/length, construction details, texture/material, and garment presence, scored as `1`, `0.5`, `0`, or `-1` when genuinely not applicable.
-
-## Run the balance-guarded method search
-
-Prepare D01–D03, then run the predeclared search:
-
-```bash
-for case_id in D01 D02 D03; do
-  uv run weon-prepare-inputs "$case_id"
-done
-
-uv run weon-budget-search --floor-usd 10.00 --max-paid-requests 600
-```
-
-The evaluator contract is frozen before execution: `openai/gpt-4.1-mini`, one opaque candidate, the same six dimensions, and fixed source-level applicability masks. Every final candidate contributes to its method aggregate; the evaluator does not select which samples count. H01 and H02 are inaccessible to this command.
-
-The predeclared queue tests direct generation, identity-priority prompting, deterministic garment-detail boards, fixed two-pass repair, and several image models. Before every generation or evaluator call, the runner reads the key-specific allowance and checks a conservative reserve against the hard `$10.00` floor. Every attempted paid network call is counted, including provider failures. Near the floor, only the previously measured low-cost direct Nano Banana 2 Lite method remains eligible.
-
-Outputs include `results.csv`, `method_summary.csv`, `search_summary.json`, `failures.json`, `skips.json`, reviewer-neutral `review_scores.csv`, and the generated images/metadata in the temporary workflow artifact. The evaluator prompt, schema, masks, and ranking rules must not be changed after results are observed.
-
-## Reproduce the frozen holdouts
-
-The explicit override is restricted to the final fixed evaluation:
+The holdout command is intentionally separate and explicit:
 
 ```bash
 uv run weon-prepare-inputs H01 --allow-holdout
@@ -115,22 +99,7 @@ uv run weon-prepare-inputs H02 --allow-holdout
 uv run weon-holdout
 ```
 
-This command uses the committed baseline configuration and makes exactly two generation requests and two rough evaluator requests. It exposes no strategy-selection option, performs no retries or resampling, and does not access D01-D03. Raw evaluator JSON is persisted before aggregation, and the frozen source-applicability mask rejects invalid `-1` values rather than silently changing a score denominator.
-
-The development and holdout commands emit reviewer-neutral `review_scores.csv` templates. The committed filled assessments are explicitly named `*-chatgpt-visual-scores.csv`.
-
-Each holdout contact sheet contains the packshot, full generated result, and a deterministic garment-region detail crop. The normalized and pixel crop coordinates are stored in `submission/figures/crop-metadata.json`; these crops affect presentation only, not generation or scoring.
-
-## GitHub Actions
-
-Permanent paid workflows are manual/reusable and separate from normal CI:
-
-- **Run paid experiment** — one D01-D03 baseline call;
-- **Run development matrix** — the development comparison;
-- **Run frozen holdouts** — the fixed H01-H02 evaluation;
-- **Run budgeted method search** — the frozen-evaluation D01-D03 search with a hard `$10.00` allowance floor.
-
-Every paid workflow runs dependency sync, Ruff, strict mypy, tests, and build before spending. Artifacts are retained for 14 days. Ordinary pushes and pull requests never trigger paid requests.
+Raw assignment inputs and standalone generated outputs are not committed. Compact metrics, experiment records, and compressed contact sheets are durable in the repository.
 
 ## Validation
 
@@ -141,4 +110,12 @@ uv run pytest
 uv build
 ```
 
-No automated test sends a real API request. Raw inputs and standalone generated images are not committed; compact CSV/Markdown evidence and crop-enhanced final contact sheets remain durable in the repository.
+Normal CI never performs a paid model request. Paid workflows first run dependency sync, linting, strict type checking, tests, and package build.
+
+## Limitations and disclosure
+
+- The study has five distinct cases, with repeated development samples rather than a large benchmark.
+- The automatic judge saturated and overestimated exact product fidelity.
+- No independent human reviewer participated.
+- Image generation, automatic scoring, and analysis used AI systems; their roles are documented in the report and experiment records.
+- The last observed vendor-key allowance was about `$0.03`; no further meaningful paid run is justified.
