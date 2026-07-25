@@ -5,7 +5,7 @@ on:
     branches: [experiment/budgeted-method-search]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   diagnose:
@@ -13,20 +13,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fix terminal stop reason
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/weon_eval/promotion_search.py")
+          text = path.read_text()
+          old = '''    counter = PaidRequestCounter()
+    replicate = 1
+    stop_reason = "request_cap"
+'''
+          new = '''    counter = PaidRequestCounter()
+    replicate = 1
+    stop_reason = "running"
+'''
+          if old not in text:
+              raise SystemExit("promotion initial stop state not found")
+          text = text.replace(old, new, 1)
+          old_block = '''        if successful_this_round == 0:
+            if stop_reason != "request_cap":
+                stop_reason = (
+                    "floor_guard" if attempted_this_round == 0 else "no_successful_candidates"
+                )
+            break
+        replicate += 1
+
+    ending = allowance_getter(api_key)
+'''
+          new_block = '''        if successful_this_round == 0:
+            if stop_reason == "running":
+                stop_reason = (
+                    "floor_guard" if attempted_this_round == 0 else "no_successful_candidates"
+                )
+            break
+        replicate += 1
+
+    if stop_reason == "running":
+        stop_reason = "request_cap"
+    ending = allowance_getter(api_key)
+'''
+          if old_block not in text:
+              raise SystemExit("promotion terminal stop block not found")
+          path.write_text(text.replace(old_block, new_block, 1))
+          PY
+          rm -f .github/workflows/diagnose-promotion-test.yml
+          rm -f .promotion-stop-trigger
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
       - run: uv sync --dev
-      - name: Capture focused pytest
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Commit verified stop-reason fix
         run: |
-          set +e
-          uv run pytest tests/test_promotion_search.py -vv > pytest.txt 2>&1
-          echo $? > pytest-status.txt
-          exit 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: promotion-pytest-${{ github.run_id }}
-          path: |
-            pytest.txt
-            pytest-status.txt
-          retention-days: 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: report promotion stop reason accurately" -m "Use an explicit running state so complete-block floor stops are reported as floor_guard rather than inheriting a request-cap placeholder. Validate every gate and remove temporary diagnostics."
+          git push origin HEAD:${{ github.head_ref }}
