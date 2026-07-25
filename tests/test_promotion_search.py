@@ -80,7 +80,7 @@ def test_promotion_cli_defaults_are_frozen() -> None:
     assert args.max_paid_requests == 300
 
 
-def test_repair_promotion_runs_development_cases_only_and_stops_at_floor(
+def test_repair_promotion_runs_complete_development_block_and_stops_at_floor(
     tmp_path: Path,
 ) -> None:
     cases = []
@@ -109,7 +109,7 @@ def test_repair_promotion_runs_development_cases_only_and_stops_at_floor(
     prompt_path = tmp_path / "baseline.txt"
     prompt_path.write_text("Create scene.\n{garment_roles}\n")
 
-    remaining = Decimal("0.80")
+    remaining = Decimal("0.95")
     generated_prompts: list[str] = []
 
     def allowance_getter(api_key: str) -> KeyAllowance:
@@ -161,9 +161,10 @@ def test_repair_promotion_runs_development_cases_only_and_stops_at_floor(
     assert [row["case_id"] for row in rows] == ["D01", "D02", "D03"]
     assert all(row["method"] == "duplicate_garment_repair" for row in rows)
     assert len(generated_prompts) == 6
-    assert remaining == Decimal("0.554")
+    assert remaining == Decimal("0.704")
     summary = json.loads((output_root / "search_summary.json").read_text())
     assert summary["stop_reason"] == "floor_guard"
     assert summary["paid_requests"] == 9
     assert summary["holdout_requests"] == 0
+    assert summary["complete_case_blocks_required"] is True
     assert summary["winner"] == "duplicate_garment_repair"
