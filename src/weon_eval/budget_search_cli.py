@@ -12,6 +12,7 @@ from weon_eval.budget_search import (
     DEFAULT_MAX_PAID_REQUESTS,
     run_budget_search,
 )
+from weon_eval.search_methods import METHOD_SETS
 
 
 def _decimal(value: str) -> Decimal:
@@ -35,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_PAID_REQUESTS,
     )
+    parser.add_argument(
+        "--method-set",
+        choices=tuple(METHOD_SETS),
+        default="broad",
+    )
     return parser
 
 
@@ -50,6 +56,7 @@ def main() -> None:
         output_root=args.output,
         floor_usd=args.floor_usd,
         max_paid_requests=args.max_paid_requests,
+        methods=METHOD_SETS[args.method_set],
     )
 
 
