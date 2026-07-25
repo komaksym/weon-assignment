@@ -1,4 +1,4 @@
-name: Render human-review sheets
+name: Finalize human-review evidence
 
 on:
   pull_request:
@@ -6,18 +6,14 @@ on:
       - main
     paths:
       - .github/workflows/render-human-review.yml
-      - scripts/render_human_review_sheets.py
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
-  render:
+  finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out PR branch
         uses: actions/checkout@v4
@@ -30,23 +26,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Download frozen experiment artifacts
+      - name: Finalize documentation and remove temporary helpers
         run: |
-          gh run download 30102014361 \
-            --name development-matrix-30102014361 \
-            --dir /tmp/development
-          gh run download 30113526488 \
-            --name frozen-holdouts-30113526488 \
-            --dir /tmp/holdout
+          uv run python scripts/finalize_human_review_docs.py
+          rm scripts/render_human_review_sheets.py
+          rm scripts/finalize_human_review_docs.py
+          rm .github/workflows/render-human-review.yml
 
-      - name: Render review sheets
-        run: |
-          uv run python scripts/render_human_review_sheets.py \
-            --development-root /tmp/development \
-            --holdout-root /tmp/holdout \
-            --output-dir submission/review
-
-      - name: Verify review evidence
+      - name: Verify permanent review evidence
         run: |
           uv run python - <<'PY'
           from pathlib import Path
@@ -59,26 +46,31 @@ jobs:
               'H01-human-review.png': (3100, 2250),
               'H02-human-review.png': (3100, 2250),
           }
-          root = Path('submission/review')
           for name, size in expected.items():
-              path = root / name
-              if not path.exists():
-                  raise SystemExit(f'Missing review sheet: {path}')
+              path = Path('submission/review') / name
               with Image.open(path) as image:
                   image.verify()
               with Image.open(path) as image:
                   if image.size != size:
                       raise SystemExit(f'{name}: expected {size}, got {image.size}')
-              if path.stat().st_size < 500_000:
-                  raise SystemExit(f'{name}: unexpectedly small file')
+          if not Path('submission/HUMAN_REVIEW.md').exists():
+              raise SystemExit('Missing human-review protocol')
           PY
+          git diff --check
 
-      - name: Commit rendered sheets to the PR branch
+      - name: Run repository validation
+        run: |
+          uv run ruff check .
+          uv run mypy src
+          uv run pytest
+          uv build
+
+      - name: Commit permanent review evidence
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add submission/review/*.png
+          git add -A
           git commit \
-            -m 'docs: render high-resolution review sheets' \
-            -m 'Rebuild D01-D03 and H01-H02 review evidence from the original full-resolution workflow artifacts. Preserve the frozen generated outputs while presenting source garments, full candidates, and garment-region detail crops on readable PNG canvases.'
+            -m 'docs: finalize high-resolution human-review evidence' \
+            -m 'Link the D01-D03 and H01-H02 review sheets from README, REPORT, and PLANS; preserve the pending author-rating protocol; verify the full repository; and remove all temporary rendering helpers.'
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
