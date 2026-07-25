@@ -1,0 +1,35 @@
+name: Diagnose promotion search
+
+on:
+  pull_request:
+    branches: [experiment/budgeted-method-search]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: ${{ github.head_ref == 'experiment/targeted-ablation-search' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - name: Capture checks
+        run: |
+          set +e
+          mkdir diagnostics
+          uv run ruff check . > diagnostics/ruff.txt 2>&1
+          echo $? > diagnostics/ruff-status.txt
+          uv run mypy src > diagnostics/mypy.txt 2>&1
+          echo $? > diagnostics/mypy-status.txt
+          uv run pytest tests/test_promotion_search.py > diagnostics/pytest.txt 2>&1
+          echo $? > diagnostics/pytest-status.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: promotion-diagnostics-${{ github.run_id }}
+          path: diagnostics/
+          retention-days: 1
