@@ -1,0 +1,108 @@
+name: Run budgeted method search
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_paid_run:
+        description: Confirm paid D01-D03 search with a hard $10 allowance floor
+        required: true
+        type: boolean
+        default: false
+      max_paid_requests:
+        description: Safety cap across generation and evaluator attempts
+        required: true
+        type: number
+        default: 600
+  workflow_call:
+    inputs:
+      confirm_paid_run:
+        required: true
+        type: boolean
+      max_paid_requests:
+        required: false
+        type: number
+        default: 600
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paid-budgeted-method-search
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: ${{ inputs.confirm_paid_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Guard paid run
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+            echo "OPENROUTER_API_KEY is not configured" >&2
+            exit 2
+          fi
+          if (( ${{ inputs.max_paid_requests }} < 1 || ${{ inputs.max_paid_requests }} > 600 )); then
+            echo "max_paid_requests must be between 1 and 600" >&2
+            exit 2
+          fi
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv build
+      - name: Prepare development inputs
+        run: |
+          set -euo pipefail
+          for case_id in D01 D02 D03; do
+            uv run weon-prepare-inputs "$case_id"
+          done
+      - name: Run frozen-evaluation budget search
+        run: >-
+          uv run weon-budget-search
+          --floor-usd 10.00
+          --max-paid-requests ${{ inputs.max_paid_requests }}
+      - name: Publish summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("outputs/budget-search/search_summary.json")
+          if not path.exists():
+              lines = ["## Budgeted method search", "- No final summary was produced."]
+          else:
+              summary = json.loads(path.read_text())
+              lines = [
+                  "## Budgeted method search",
+                  f"- Starting allowance: `${summary['starting_allowance_usd']}`",
+                  f"- Ending allowance: `${summary['ending_allowance_usd']}`",
+                  f"- Reported spend: `${summary['spent_usd']}`",
+                  f"- Paid attempts: `{summary['paid_requests']}`",
+                  f"- Successful candidates: `{summary['successful_candidates']}`",
+                  f"- Stop reason: `{summary['stop_reason']}`",
+                  f"- Winner: `{summary['winner']}`",
+                  f"- Holdout requests: `{summary['holdout_requests']}`",
+              ]
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: budgeted-method-search-${{ github.run_id }}
+          path: outputs/budget-search/
+          if-no-files-found: warn
+          retention-days: 14
