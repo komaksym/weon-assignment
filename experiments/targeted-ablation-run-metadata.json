@@ -1,0 +1,74 @@
+{
+  "prior_broad_control": {
+    "workflow_run_id": 30125684386,
+    "artifact": {
+      "id": 8610643702,
+      "name": "budgeted-method-search-30125684386",
+      "sha256": "4aefe6476df5b2a40eafdf33cdb92921a3946cbaaccf1e08e7404a10776fd9ea"
+    },
+    "starting_allowance_usd": "19.4208539",
+    "ending_allowance_usd": "10.0358314",
+    "spent_usd": "9.3850225",
+    "paid_requests": 332,
+    "valid_candidates": 102,
+    "failure_count": 53,
+    "stop_reason": "floor_guard"
+  },
+  "targeted_stage_one": {
+    "workflow_run_id": 30147851575,
+    "artifact": {
+      "id": 8616897639,
+      "name": "targeted-ablation-stage1-30147851575",
+      "sha256": "32748a40f918cafe9ac25eca0e6779b84d7a04ebd1eedd93be8ba6ed00099853"
+    },
+    "starting_allowance_usd": "9.96237695",
+    "ending_allowance_usd": "5.6660722",
+    "spent_usd": "4.29630475",
+    "paid_requests": 240,
+    "valid_candidates": 102,
+    "failure_count": 18,
+    "stop_reason": "floor_guard",
+    "nominal_winner": "lite_duplicate_garment"
+  },
+  "promotion": {
+    "workflow_run_id": 30149506865,
+    "artifact": {
+      "id": 8617395018,
+      "name": "top-two-promotion-search-30149506865",
+      "sha256": "fa8f0216af4e567d4df8b926dd88309fca1e6b2f0a0f9f351d40f91f5b698953"
+    },
+    "starting_allowance_usd": "5.630271799999999",
+    "ending_allowance_usd": "0.4999501500000001",
+    "spent_usd": "5.1303216499999989",
+    "paid_requests": 252,
+    "valid_candidates": 63,
+    "failure_count": 9,
+    "stop_reason": "floor_guard",
+    "nominal_winner": "identity_tight_crop_best_of_two"
+  },
+  "guard_only_rerun": {
+    "workflow_run_id": 30150811083,
+    "artifact": {
+      "id": 8617556947,
+      "name": "targeted-ablation-stage1-30150811083",
+      "sha256": "e1f2acee06fb156487596d7cd51f1f42105c0131fab9ec93116d6de490677fc6"
+    },
+    "starting_allowance_usd": "0.4639547999999998",
+    "ending_allowance_usd": "0.4639547999999998",
+    "spent_usd": "0E-16",
+    "paid_requests": 0,
+    "stop_reason": "floor_guard"
+  },
+  "evaluation": {
+    "cases": ["D01", "D02", "D03"],
+    "evaluator_model": "openai/gpt-4.1-mini",
+    "evaluation_prompt_frozen": true,
+    "holdout_requests": 0,
+    "automatic_retries": 0
+  },
+  "decision": {
+    "operational_baseline": "lite_direct",
+    "proven_improvement": false,
+    "continue_paid_search": false
+  }
+}
