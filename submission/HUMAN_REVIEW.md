@@ -2,7 +2,7 @@
 
 ## Status and disclosure
 
-The high-resolution review sheets are prepared. Numeric ratings are **pending**.
+The crop-first review sheets are prepared. Numeric ratings are **pending**.
 
 The reviewer will be **Maksym Koval, the assignment author**. This satisfies the task's human sanity-check requirement, but it is not independent or multi-rater human evaluation. The raw ratings and calculated summaries will be committed after the reviewer submits the completed form.
 
@@ -11,7 +11,7 @@ No image was regenerated for this review. The sheets reuse the frozen outputs fr
 - development workflow run `30102014361`, artifact `development-matrix-30102014361`;
 - holdout workflow run `30113526488`, artifact `frozen-holdouts-30113526488`.
 
-The sheets change presentation only. They do not change prompts, candidates, automatic scores, costs, or the frozen baseline decision.
+The revised sheets change presentation only. They do not change prompts, candidates, automatic scores, costs, or the frozen baseline decision. The garment crops come from the original full-resolution outputs. A small display-only clarity pass was applied equally to every crop; no relighting, recoloring, segmentation, or content generation was used.
 
 ## Review sheets
 
@@ -23,7 +23,27 @@ Open each PNG at full resolution before scoring:
 - [H01 — footwear holdout](review/H01-human-review.png)
 - [H02 — shorts holdout](review/H02-human-review.png)
 
-Do not consult the existing automatic or ChatGPT visual scores until all ratings are complete. Compare each generated garment directly against the source garment. Scene realism, pose, identity, and background quality are out of scope unless they prevent garment inspection.
+Do not consult the existing automatic or ChatGPT visual scores until all ratings are complete.
+
+## Rating order and confound control
+
+The methods generated separate full scenes, so pose, stance, facial expression, and lighting can differ. Those differences must not become a proxy for garment quality.
+
+Use this fixed order for every output:
+
+1. **Primary garment crop:** assign the garment-fidelity scores from this crop first.
+2. **Detail zoom:** inspect logos, text, closures, buttons, pockets, seams, panels, perforation, stitching, and material boundaries.
+3. **Small context image:** use only for overall silhouette/length and garment presence, or when a crop hides relevant context.
+
+Ignore these unless they prevent garment inspection:
+
+- model pose or stance;
+- facial expression or body presentation;
+- how flattering or aesthetically strong the person render looks;
+- background realism or composition;
+- scene lighting as an aesthetic quality.
+
+Lighting can still cause real visible garment-color drift. Score the visible garment color against the source, but do not reward a method merely because its model or scene is better lit.
 
 ## Scoring rubric
 
