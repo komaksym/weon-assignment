@@ -13,13 +13,13 @@ I tested four families of levers available around closed-source image models:
 
 The result is negative but actionable: **none of the tested methods reliably beat direct Gemini 3.1 Flash Lite generation.** The strongest promoted pipeline scored `0.9750`, versus `0.9762` for the repeated direct control, while costing about twice as much. A later paired D01-D03 check tied direct generation with identity-plus-negative prompting at `1.0000` and placed identity-plus-tight-crop below both at `0.9667`.
 
-Those scores overstate real quality. Methods sometimes received `1.0000` while logos were unreadable, pocket and zipper geometry changed, shoe panels and soles drifted, and materials were simplified. The automatic judge was useful for rough screening, but it saturated before exact product fidelity was achieved.
+Those scores still overstate exact product fidelity, but the high-resolution audit also showed that the earlier narrative was too harsh on the shorts cases. D01 and H02 are strong visual matches. The clearest remaining failures are concentrated in footwear branding/panel/sole geometry and jacket collar/closure/pocket construction. The automatic judge was useful for rough screening, but it saturated before exact product fidelity was achieved.
 
 **Recommendation:** retain direct generation as the operational baseline. In production, add a cheap garment-region quality gate and escalate only failures to resampling, targeted repair, or human review.
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
-The compact collage is a report summary, not a rating surface. Human scoring should use the separate [high-resolution author-review sheets](submission/HUMAN_REVIEW.md), which show each source garment, full generated candidate, and garment-region crop. The sheets are prepared; numeric author ratings are pending.
+The compact collage is a report summary, not a rating surface. The separate [high-resolution AI-assisted audit](submission/AI_HIGH_RES_REVIEW.md) re-checks the frozen artifacts in detail using the same six dimensions. The [author human-review path](submission/HUMAN_REVIEW.md) remains available separately; its numeric ratings are still pending.
 
 ## 1. Failure-mode analysis
 
@@ -67,7 +67,7 @@ Every final candidate was judged on six dimensions:
 
 Scores were `1`, `0.5`, `0`, or `-1` only when the source truly made a dimension inapplicable. The final evaluator remained `openai/gpt-4.1-mini` with the same prompt, schema, applicability masks, and aggregation. Candidate IDs were opaque where comparison or selection occurred. Raw evaluator JSON was persisted before validation. Method selection had no access to H01-H02, no automatic retries, and no method-specific judge prompt or metric reweighting.
 
-A separate ChatGPT visual assessment reviewed committed contact sheets using the same concepts. This was an AI sanity check, **not independent human evaluation**. A human sanity-check path is now prepared from the frozen full-resolution artifacts; its pending ratings will be explicitly attributed to the assignment author.
+A separate ChatGPT visual assessment reviewed committed contact sheets using the same concepts. This was an AI sanity check, **not independent human evaluation**. A later high-resolution AI-assisted audit used the frozen full-resolution artifacts and is reported separately below. The author human-review path remains pending and, if completed, will be explicitly attributed to the assignment author.
 
 ## 3. Results
 
@@ -91,7 +91,7 @@ The small stage-one lead for duplicated garment evidence and identity-plus-tight
 
 This tiny block does not prove that direct and identity-plus-negatives are truly equivalent. It does show that tight-crop conditioning did not reliably improve the baseline and that the automatic judge had reached a ceiling.
 
-A final duplicate-reference D01-D03 block also received `1.0000`. Visual inspection still found unreadable or incorrect branding, approximate shoe panel and sole construction, and drifted jacket pockets, closure, collar, seams, and material. A perfect score therefore meant "the judge could not distinguish the remaining errors," not "the garment was exact."
+A final duplicate-reference D01-D03 block also received `1.0000`. The high-resolution review shows why a perfect score is not proof of exactness: footwear branding and overlay/sole geometry remain approximate, and the jacket still changes collar, closure, pocket construction, and material specificity. At the same time, the shorts cases are genuinely strong and should not be described as broadly failed.
 
 ### Initial controlled comparison and holdouts
 
@@ -116,13 +116,35 @@ High-resolution development review sheets:
 | H01 sneakers | Invalid - source applicability violation | 0.5833 | $0.0345 | 8.43 s |
 | H02 shorts | 1.0000 | 0.7500 | $0.0349 | 10.25 s |
 
-H01's evaluator response incorrectly assigned `silhouette_length = -1` to footwear. The predeclared source mask required that dimension, so the raw response was retained but rejected from aggregation. H02 preserved the broad color, length, double-button waist, belt loops, and cargo layout, but branding, zipper placement, panel geometry, stitching, and technical-fabric texture remained approximate.
+H01's evaluator response incorrectly assigned `silhouette_length = -1` to footwear. The predeclared source mask required that dimension, so the raw response was retained but rejected from aggregation. H02 preserved the broad color, length, double-button waist, belt loops, and cargo layout; the high-resolution audit further confirms that it is a strong reproduction, with remaining uncertainty concentrated in branding placement and small asymmetric construction details.
+
+### High-resolution visual audit
+
+A separate [high-resolution AI-assisted visual audit](submission/AI_HIGH_RES_REVIEW.md) rescored the frozen development and holdout artifacts from garment crops and detail views using the same six-dimension scale.
+
+| Case | Baseline | Structured | Best-of-two |
+| --- | ---: | ---: | ---: |
+| D01 shorts | **0.8333** | **0.8333** | **0.8333** |
+| D02 shoes | **0.5833** | **0.5833** | **0.5833** |
+| D03 jacket | **0.7000** | **0.7000** | **0.7000** |
+
+Development method means all tie at **0.7056**. In the frozen initial development artifact, best-of-two selected structured-A for D01-D03, so those best-of-two images are byte-identical to the corresponding structured rows and necessarily receive the same visual score.
+
+The holdout audit scored H01 at **0.5833** and H02 at **0.8333**.
+
+The important qualitative result is uneven difficulty rather than universal failure:
+
+- **D01/H02 shorts:** strong overall preservation; palette, length, double-button waist, dark panels, zips, hem, and technical-fabric appearance are convincing. Remaining issues are branding and micro-construction such as D-ring/side-specific details.
+- **D02/H01 shoes:** the weakest category. Palette and sneaker identity are preserved, but visible `ARIGATO` branding is not reliably legible and toe/side overlay, sole, and material-boundary geometry drift.
+- **D03 jacket:** silhouette and dark-green field-jacket identity are preserved, but the dark-brown corduroy collar, concealed closure, lower-pocket construction, and material specificity drift.
+
+This audit therefore supports the same method-level decision for a more precise reason: **baseline is already strong on some examples, and the tested complexity does not improve it.**
 
 ### Author human review
 
 The [author human-review protocol](submission/HUMAN_REVIEW.md) covers all nine initial development method outputs plus the two frozen holdouts using the same six dimensions. It deliberately excludes scene realism and asks the reviewer to score source-to-garment fidelity from the high-resolution detail crops.
 
-The materials are complete, but the numeric ratings are not yet recorded. Until they are supplied, this report makes no human-score claim. When added, they will remain a separate attributed evidence path and will not replace or retune the frozen automatic or ChatGPT results.
+The materials are complete, but the numeric human ratings are not yet recorded. Until they are supplied, this report makes no human-score claim. If added later, they will remain a separate attributed evidence path and will not replace or retune the frozen automatic, ChatGPT, or high-resolution AI-assisted results.
 
 ## 4. Practical conclusion and production design
 
@@ -166,6 +188,6 @@ With a fresh budget and independent raters, I would prioritize:
 
 ## Limitations and disclosure
 
-This is a focused exploration, not a large benchmark. It uses five distinct cases with repeated development samples. No independent human reviewer participated. High-resolution author-review materials are prepared, but their ratings are pending. ChatGPT performed the existing visual-assessment path and assisted with implementation, orchestration, analysis, evidence layout, and writing. Image outputs came from the tested generation models; automatic scores and best-of-two selection used GPT-4.1 Mini.
+This is a focused exploration, not a large benchmark. It uses five distinct cases with repeated development samples. No independent human reviewer participated. The high-resolution AI-assisted audit is explicitly separate from the still-pending author human-review path. ChatGPT performed the existing visual-assessment path, the high-resolution audit, and assisted with implementation, orchestration, analysis, evidence layout, and writing. Image outputs came from the tested generation models; automatic scores and best-of-two selection used GPT-4.1 Mini.
 
 The final vendor-key allowance observation was about `$0.03`. The provider balance endpoint showed delayed or non-monotonic values at very low balance, so per-request costs and committed workflow artifacts are treated as the durable accounting evidence.
