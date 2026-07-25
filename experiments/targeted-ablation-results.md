@@ -122,7 +122,7 @@ A method counts as better only when the gain is material, visibly real, and wort
 
 Use `lite_direct` when coarse garment identity is sufficient. Do not claim any tested method is reliable for brand-critical catalog work.
 
-For a future, separately budgeted study, the only candidates worth carrying forward are `lite_duplicate_garment` and `lite_identity_tight_crop`, evaluated on a larger case set with a concurrent baseline, garment-region review, explicit OCR/logo checks, and independent human raters. The last observed allowance is about `$0.03`, so no further meaningful paid run should be attempted.
+For a future, separately budgeted study, the only candidates worth carrying forward are `lite_duplicate_garment` and `lite_identity_negative`, evaluated on a larger case set with a concurrent baseline, garment-region review, explicit OCR/logo checks, and independent human raters. The last observed allowance is about `$0.03`, so no further meaningful paid run should be attempted.
 
 ```mermaid
 flowchart LR
