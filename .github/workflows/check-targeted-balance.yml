@@ -1,0 +1,44 @@
+name: Check targeted search balance
+
+on:
+  pull_request:
+    branches: [experiment/targeted-ablation-search]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: ${{ github.head_ref == 'observe/targeted-stage1-balance' }}
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - name: Read key allowance
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from decimal import Decimal
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              "https://openrouter.ai/api/v1/key",
+              headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              data = json.load(response)["data"]
+          if data.get("limit_remaining") is not None:
+              remaining = Decimal(str(data["limit_remaining"]))
+          else:
+              remaining = Decimal(str(data["limit"])) - Decimal(str(data["usage"]))
+          Path("balance.json").write_text(
+              json.dumps({"remaining_allowance_usd": str(remaining)}, indent=2) + "\n"
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: targeted-balance-${{ github.run_id }}
+          path: balance.json
+          retention-days: 1
