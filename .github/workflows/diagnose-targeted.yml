@@ -1,0 +1,32 @@
+name: Diagnose targeted ablations
+
+on:
+  pull_request:
+    branches: [experiment/budgeted-method-search]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: ${{ github.head_ref == 'experiment/targeted-ablation-search' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev
+      - name: Capture mypy output
+        run: |
+          set +e
+          uv run mypy src > mypy.txt 2>&1
+          echo $? > mypy-status.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: targeted-mypy-${{ github.run_id }}
+          path: |
+            mypy.txt
+            mypy-status.txt
+          retention-days: 1
