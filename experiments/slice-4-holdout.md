@@ -26,7 +26,9 @@ The first execution stopped during input preparation because the existing safety
 
 ## Results
 
-| Case | Automatic | Manual | Generation cost | End-to-end experiment latency |
+The qualitative scores below were assigned by ChatGPT from the crop-enhanced contact sheets. No independent human reviewer participated.
+
+| Case | Automatic | ChatGPT visual assessment | Generation cost | End-to-end experiment latency |
 | --- | ---: | ---: | ---: | ---: |
 | H01 sneakers | **invalid — source N/A violation** | 0.5833 | $0.034466 | 8.43 s |
 | H02 shorts | 1.0000 | 0.7500 | $0.034934 | 10.25 s |
@@ -59,4 +61,4 @@ The frozen baseline generalizes mechanically across footwear and technical short
 
 ## Decision
 
-No holdout-driven model, prompt, preprocessing, candidate, rubric, or manual-score change was made. The baseline remains the final method because development comparisons showed no blinded automatic advantage for structured prompting or best-of-two, while baseline was cheaper, faster, and manually strongest. The holdouts confirm that this is a practical but incomplete solution: coarse garment identity is preserved more reliably than brand-level or construction-level fidelity.
+No holdout-driven model, prompt, preprocessing, candidate, rubric, or ChatGPT visual-score change was made. The baseline remains the final method because development comparisons showed no blinded automatic advantage for structured prompting or best-of-two, while baseline was cheaper and faster. The ChatGPT visual-assessment scores are supplemental and are not presented as human validation. The holdouts confirm that this is a practical but incomplete solution: coarse garment identity is preserved more reliably than brand-level or construction-level fidelity.

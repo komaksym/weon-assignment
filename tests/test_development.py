@@ -145,6 +145,12 @@ def test_run_development_executes_nine_generations_and_no_holdouts(tmp_path: Pat
 
     rows = list(csv.DictReader((output_root / "results.csv").open()))
     assert len(rows) == 9
+    review_rows = list(csv.DictReader((output_root / "review_scores.csv").open()))
+    assert len(review_rows) == 9
+    assert all(row["reviewer"] == "" for row in review_rows)
+    assert all(row["review_method"] == "" for row in review_rows)
+    assert all(row["mean_review_score"] == "" for row in review_rows)
+    assert not (output_root / "manual_scores.csv").exists()
     assert {row["strategy"] for row in rows} == {
         "baseline",
         "structured",

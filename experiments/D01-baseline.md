@@ -61,7 +61,9 @@ All free gates passed before the paid request:
 - selected-case download and source-format validation: passed
 - deterministic reference compaction: passed
 
-## Manual inspection
+## ChatGPT visual inspection
+
+ChatGPT performed this inspection from the generated artifact and references. No independent human reviewer participated.
 
 ### Composition mechanics
 

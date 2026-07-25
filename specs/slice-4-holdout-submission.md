@@ -21,9 +21,9 @@ Apply the slice-3 winner exactly once to H01 and H02, freeze the observed result
 1. Prepare only H01 and H02 from the assignment source manifest.
 2. Generate one baseline image for each holdout.
 3. Score each result against its garment packshot using opaque `candidate_1` identity.
-4. Persist image metadata, evaluator output, automatic scores, cost, latency, and a manual-score template.
+4. Persist image metadata, evaluator output, automatic scores, cost, latency, and a reviewer-attributed score template.
 5. Create one compact garment-reference/result contact sheet per holdout.
-6. Inspect both holdouts manually and freeze the results without changing the model, prompt, preprocessing, or rubric.
+6. Visually assess both holdouts and record reviewer identity and method and freeze the results without changing the model, prompt, preprocessing, or rubric.
 
 The paid workflow must make exactly two image-generation requests and two evaluator requests. It must never access D01-D03 and must have no automatic retry.
 
@@ -31,7 +31,7 @@ The paid workflow must make exactly two image-generation requests and two evalua
 
 - `REPORT.md`: 1-4 page-equivalent report covering failure modes, strategies, evaluation, results, costs, robustness, limitations, and next steps.
 - `experiments/slice-4-holdout-results.csv`: compact automatic evidence.
-- `experiments/slice-4-holdout-manual.csv`: completed human sanity check.
+- `experiments/slice-4-holdout-chatgpt-visual-scores.csv`: completed ChatGPT visual assessment; no independent human reviewer participated.
 - `submission/figures/`: compressed before/after contact sheets needed for the assignment deliverable.
 - README reproduction instructions for development and frozen holdout runs.
 

@@ -11,7 +11,7 @@ flowchart LR
     C --> D[Manual paid workflow]
     D --> E[One Nano Banana Lite request]
     E --> F[Artifact: image + metadata]
-    F --> G[Manual garment inspection]
+    F --> G[Reviewer-attributed garment inspection]
     G --> H{Evidence usable?}
     H -->|Yes| I[Proceed to slice 3]
     H -->|No| J[Record blocker; do not resample]
@@ -123,9 +123,9 @@ The generated extension follows the API-reported media type. Inputs and generate
 - measured request latency;
 - ordered reference preprocessing records.
 
-## 8. Manual inspection
+## 8. Reviewer-attributed visual inspection
 
-Inspect the result against all three D01 references.
+Inspect the result against all three D01 references and record the reviewer identity and method. In the completed run, ChatGPT performed this visual inspection; no independent human reviewer participated.
 
 ### Composition mechanics
 
@@ -156,7 +156,7 @@ Update `experiments/D01-baseline.md` with:
 - model and request count;
 - generated filename, dimensions, media type, cost, and latency;
 - preprocessing dimensions and byte sizes;
-- concise manual inspection evidence;
+- concise visual-inspection evidence and reviewer provenance;
 - final decision: `proceed to slice 3` or `blocked`.
 
 Do not commit the API key, request headers, source images, or generated output.
@@ -183,7 +183,7 @@ Slice 2 is complete when:
 4. no other case is executed;
 5. the generated image opens successfully and is approximately `3:4`;
 6. metadata contains the experiment identity, preprocessing, cost, and latency;
-7. the image is manually inspected against the references;
+7. the image is visually inspected against the references with reviewer provenance recorded;
 8. `experiments/D01-baseline.md` records the evidence and decision;
 9. temporary execution machinery is removed;
 10. PR #2 retains a clean, reviewable history.

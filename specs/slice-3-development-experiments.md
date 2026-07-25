@@ -61,20 +61,20 @@ The workflow must produce:
 - `selection.json` and the selected best-of-two image for each case;
 - one contact sheet per case;
 - `results.csv` with automatic scores, generation/setup/selection costs, and latency;
-- `manual_scores.csv` with the same rubric and selector-agreement field;
+- `review_scores.csv` with the same rubric plus reviewer, method, and selector-agreement fields;
 - `development_summary.json` with request counts, aggregate costs/latencies, automatic strategy means, and pending winner status.
 
 Generated images remain in the workflow artifact and are not committed.
 
-## Manual sanity check
+## Reviewer-attributed visual assessment
 
 After the single paid workflow completes:
 
 - open every contact sheet;
-- score all nine strategy rows manually;
+- declare the reviewer and method, then score all nine strategy rows;
 - verify whether each VLM best-of-two choice is reasonable;
 - record disagreements rather than rerunning candidates;
-- compare blinded automatic and manual strategy means;
+- compare blinded automatic and reviewer-attributed strategy means;
 - consider complete end-to-end cost and latency before selecting the winner.
 
 ## Decision gate
