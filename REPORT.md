@@ -19,6 +19,8 @@ Those scores overstate real quality. Methods sometimes received `1.0000` while l
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
+The compact collage is a report summary, not a rating surface. Human scoring should use the separate [high-resolution author-review sheets](submission/HUMAN_REVIEW.md), which show each source garment, full generated candidate, and garment-region crop. The sheets are prepared; numeric author ratings are pending.
+
 ## 1. Failure-mode analysis
 
 The observed errors form a small, repeatable taxonomy:
@@ -65,7 +67,7 @@ Every final candidate was judged on six dimensions:
 
 Scores were `1`, `0.5`, `0`, or `-1` only when the source truly made a dimension inapplicable. The final evaluator remained `openai/gpt-4.1-mini` with the same prompt, schema, applicability masks, and aggregation. Candidate IDs were opaque where comparison or selection occurred. Raw evaluator JSON was persisted before validation. Method selection had no access to H01-H02, no automatic retries, and no method-specific judge prompt or metric reweighting.
 
-A separate ChatGPT visual assessment reviewed committed contact sheets using the same concepts. This was an AI sanity check, **not independent human evaluation**.
+A separate ChatGPT visual assessment reviewed committed contact sheets using the same concepts. This was an AI sanity check, **not independent human evaluation**. A human sanity-check path is now prepared from the frozen full-resolution artifacts; its pending ratings will be explicitly attributed to the assignment author.
 
 ## 3. Results
 
@@ -95,9 +97,19 @@ A final duplicate-reference D01-D03 block also received `1.0000`. Visual inspect
 
 The initial development matrix compared direct generation, structured prompting, and structured best-of-two. The blinded automatic mean tied at `0.8889` for all three. ChatGPT visual-assessment means were baseline `0.6833`, structured `0.6500`, and best-of-two `0.6500`. Best-of-two cost roughly twice as much and was much slower, so direct generation was frozen for the holdouts.
 
+High-resolution development review sheets:
+
+- [D01 technical shorts](submission/review/D01-human-review.png)
+- [D02 low-top shoes](submission/review/D02-human-review.png)
+- [D03 waxed jacket](submission/review/D03-human-review.png)
+
 ![H01 footwear holdout](submission/figures/H01-contact-sheet.jpg)
 
+[Open the high-resolution H01 review sheet](submission/review/H01-human-review.png).
+
 ![H02 shorts holdout](submission/figures/H02-contact-sheet.jpg)
+
+[Open the high-resolution H02 review sheet](submission/review/H02-human-review.png).
 
 | Holdout | Automatic result | ChatGPT visual assessment | Generation cost | Total latency |
 | --- | ---: | ---: | ---: | ---: |
@@ -105,6 +117,12 @@ The initial development matrix compared direct generation, structured prompting,
 | H02 shorts | 1.0000 | 0.7500 | $0.0349 | 10.25 s |
 
 H01's evaluator response incorrectly assigned `silhouette_length = -1` to footwear. The predeclared source mask required that dimension, so the raw response was retained but rejected from aggregation. H02 preserved the broad color, length, double-button waist, belt loops, and cargo layout, but branding, zipper placement, panel geometry, stitching, and technical-fabric texture remained approximate.
+
+### Author human review
+
+The [author human-review protocol](submission/HUMAN_REVIEW.md) covers all nine initial development method outputs plus the two frozen holdouts using the same six dimensions. It deliberately excludes scene realism and asks the reviewer to score source-to-garment fidelity from the high-resolution detail crops.
+
+The materials are complete, but the numeric ratings are not yet recorded. Until they are supplied, this report makes no human-score claim. When added, they will remain a separate attributed evidence path and will not replace or retune the frozen automatic or ChatGPT results.
 
 ## 4. Practical conclusion and production design
 
@@ -148,6 +166,6 @@ With a fresh budget and independent raters, I would prioritize:
 
 ## Limitations and disclosure
 
-This is a focused exploration, not a large benchmark. It uses five distinct cases with repeated development samples. No independent human reviewer participated. ChatGPT performed the second visual-assessment path and assisted with implementation, orchestration, analysis, and writing. Image outputs came from the tested generation models; automatic scores and best-of-two selection used GPT-4.1 Mini.
+This is a focused exploration, not a large benchmark. It uses five distinct cases with repeated development samples. No independent human reviewer participated. High-resolution author-review materials are prepared, but their ratings are pending. ChatGPT performed the existing visual-assessment path and assisted with implementation, orchestration, analysis, evidence layout, and writing. Image outputs came from the tested generation models; automatic scores and best-of-two selection used GPT-4.1 Mini.
 
 The final vendor-key allowance observation was about `$0.03`. The provider balance endpoint showed delayed or non-monotonic values at very low balance, so per-request costs and committed workflow artifacts are treated as the durable accounting evidence.
