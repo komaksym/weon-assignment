@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import mimetypes
 import os
@@ -12,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Final
 from urllib.parse import unquote, urlparse
+
+from PIL import Image
 
 from weon_eval.human_review.model import (
     ReviewDocument,
@@ -26,6 +29,8 @@ from weon_eval.human_review.model import (
 
 STATIC_ROOT: Final[Path] = Path(__file__).with_name("static")
 MAX_REQUEST_BYTES: Final[int] = 1_000_000
+
+DEVELOPMENT_PANELS: Final[dict[str, int]] = {"A": 1090, "B": 2235, "C": 3380}
 
 
 class ReviewStore:
@@ -77,6 +82,66 @@ def _safe_case_id(raw: str) -> str | None:
     if len(raw) != 3 or raw[0] not in {"D", "H"} or not raw[1:].isdigit():
         return None
     return raw
+
+
+def _evidence_box(
+    case_id: str,
+    pane: str,
+    mode: str,
+    *,
+    image_size: tuple[int, int],
+) -> tuple[int, int, int, int] | None:
+    if mode not in {"crop", "detail", "full"}:
+        return None
+    if case_id.startswith("D"):
+        base_size = (4500, 2800)
+        if pane == "source":
+            source_boxes = {
+                "D01": (70, 330, 1030, 1150),
+                "D02": (70, 450, 1030, 1000),
+                "D03": (70, 330, 1030, 1200),
+            }
+            base_box = source_boxes[case_id]
+        elif pane in DEVELOPMENT_PANELS:
+            left = DEVELOPMENT_PANELS[pane]
+            detail_top = 2100 if case_id == "D02" else 1960
+            development_boxes = {
+                "crop": (left + 40, 1080, left + 1030, 1700),
+                "detail": (left + 160, detail_top, left + 910, 2450),
+                "full": (left + 260, 330, left + 780, 930),
+            }
+            base_box = development_boxes[mode]
+        else:
+            return None
+    else:
+        base_size = (3400, 2500)
+        source_box = (
+            (70, 400, 1050, 1000)
+            if case_id == "H01"
+            else (70, 300, 1050, 1150)
+        )
+        holdout_boxes = {
+            ("source", "crop"): source_box,
+            ("source", "detail"): source_box,
+            ("source", "full"): source_box,
+            ("output", "crop"): (1120, 1170, 2250, 1750),
+            ("output", "detail"): (2350, 1300, 3330, 1750),
+            ("output", "full"): (1350, 340, 1950, 1050),
+        }
+        holdout_box = holdout_boxes.get((pane, mode))
+        if holdout_box is None:
+            return None
+        base_box = holdout_box
+
+    width, height = image_size
+    base_width, base_height = base_size
+    left, top, right, bottom = base_box
+    return (
+        round(left * width / base_width),
+        round(top * height / base_height),
+        round(right * width / base_width),
+        round(bottom * height / base_height),
+    )
 
 
 def make_handler(*, repo_root: Path, store: ReviewStore) -> type[BaseHTTPRequestHandler]:
@@ -136,10 +201,11 @@ def make_handler(*, repo_root: Path, store: ReviewStore) -> type[BaseHTTPRequest
 
         def _serve_evidence(self, path: str) -> None:
             raw_name = unquote(path.removeprefix("/evidence/"))
-            if "/" in raw_name or "\\" in raw_name or not raw_name.endswith(".png"):
+            if "\\" in raw_name or not raw_name.endswith(".png"):
                 self._send_error_json("invalid evidence path", HTTPStatus.BAD_REQUEST)
                 return
-            case_id = _safe_case_id(raw_name.removesuffix(".png"))
+            parts = raw_name.removesuffix(".png").split("/")
+            case_id = _safe_case_id(parts[0])
             if case_id is None:
                 self._send_error_json("invalid case id", HTTPStatus.BAD_REQUEST)
                 return
@@ -150,7 +216,22 @@ def make_handler(*, repo_root: Path, store: ReviewStore) -> type[BaseHTTPRequest
                     HTTPStatus.NOT_FOUND,
                 )
                 return
-            self._send_bytes(evidence_path.read_bytes(), content_type="image/png")
+            if len(parts) == 1:
+                self._send_bytes(evidence_path.read_bytes(), content_type="image/png")
+                return
+            if len(parts) != 3:
+                self._send_error_json("invalid evidence path", HTTPStatus.BAD_REQUEST)
+                return
+
+            pane, mode = parts[1:]
+            with Image.open(evidence_path) as sheet:
+                box = _evidence_box(case_id, pane, mode, image_size=sheet.size)
+                if box is None:
+                    self._send_error_json("invalid evidence pane", HTTPStatus.BAD_REQUEST)
+                    return
+                output = io.BytesIO()
+                sheet.crop(box).save(output, format="PNG", optimize=True)
+            self._send_bytes(output.getvalue(), content_type="image/png")
 
         def do_GET(self) -> None:
             path = urlparse(self.path).path

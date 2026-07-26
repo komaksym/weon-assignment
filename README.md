@@ -28,7 +28,7 @@ A same-run D01-D03 control gave `lite_direct = 1.0000`, identity plus negative c
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
-The compact image above is report-only. Use the dedicated [author human-review protocol](submission/HUMAN_REVIEW.md), local rating app, and high-resolution sheets for actual garment-detail scoring. The sheets and evaluator are prepared; numeric author ratings are pending and will be recorded separately.
+The compact image above is report-only. Use the dedicated [author human-review protocol](submission/HUMAN_REVIEW.md), local rating app, and high-resolution sheets for actual garment-detail scoring. The evaluator reduces the author check to 11 overall decisions; numeric author ratings remain pending.
 
 ## What was tested
 
@@ -55,7 +55,7 @@ The final evaluator was frozen before paid execution:
 - no holdout access during method selection;
 - no retries or score-driven prompt changes.
 
-A separate ChatGPT visual assessment was used as a sanity check. It was **not** independent human evaluation. The human sanity-check path uses the same six dimensions and full-resolution evidence; its ratings will be attributed to the assignment author rather than presented as independent review.
+A separate ChatGPT visual assessment was used as a sanity check. It was **not** independent human evaluation. The human sanity-check path uses one overall visible garment-fidelity score per output and full-resolution evidence; its ratings will be attributed to the assignment author rather than presented as independent review.
 
 ## Repository map
 
@@ -86,7 +86,7 @@ No API key or paid request is needed:
 uv run weon-human-review
 ```
 
-The command opens a local one-target-at-a-time evaluator, auto-saves progress to `submission/human-review-ratings.json`, resumes incomplete work, and exports JSON, CSV, and submission-ready Markdown.
+The command opens a five-case desktop evaluator with large source/candidate panes. It auto-saves 11 overall ratings to `submission/human-review-ratings.json`, resumes incomplete work, and exports JSON, CSV, and submission-ready Markdown.
 
 ### Prepare and run one direct baseline case
 

@@ -3,37 +3,31 @@
 const state = {
   config: null,
   document: null,
-  currentIndex: 0,
-  zoom: "fit",
+  currentCaseIndex: 0,
+  activeItemId: null,
+  mode: "crop",
+  draftNotes: {},
   saveTimer: null,
   saveChain: Promise.resolve(),
-  summary: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
-function ratingFor(itemId) {
-  const ratings = state.document.ratings;
-  if (!ratings[itemId]) {
-    ratings[itemId] = { scores: {}, issues: [], note: "" };
-  }
-  return ratings[itemId];
+function itemById(itemId) {
+  return state.config.items.find((item) => item.item_id === itemId);
 }
 
-function scoreMean(scores) {
-  const values = Object.values(scores).filter((value) => value !== -1);
-  if (values.length === 0) return null;
-  return values.reduce((total, value) => total + value, 0) / values.length;
-}
-
-function isComplete(itemId) {
-  const scores = ratingFor(itemId).scores;
-  return state.config.dimensions.every((dimension) => Object.hasOwn(scores, dimension.id));
+function itemsForCase(caseData) {
+  return caseData.item_ids.map(itemById);
 }
 
 function completedCount() {
-  return state.config.items.filter((item) => isComplete(item.item_id)).length;
+  return Object.keys(state.document.ratings).length;
+}
+
+function caseIsComplete(caseData) {
+  return caseData.item_ids.every((itemId) => Object.hasOwn(state.document.ratings, itemId));
 }
 
 function setSaveStatus(text, kind = "") {
@@ -45,166 +39,220 @@ function setSaveStatus(text, kind = "") {
 function scheduleSave() {
   setSaveStatus("Unsaved", "is-pending");
   window.clearTimeout(state.saveTimer);
-  state.saveTimer = window.setTimeout(() => saveNow(), 220);
+  state.saveTimer = window.setTimeout(saveNow, 180);
 }
 
 function saveNow() {
   window.clearTimeout(state.saveTimer);
+  state.saveTimer = null;
   const snapshot = JSON.stringify(state.document);
   setSaveStatus("Saving…", "is-pending");
-  state.saveChain = state.saveChain.then(async () => {
-    const response = await fetch("/api/review", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: snapshot,
-    });
-    if (!response.ok) {
-      const detail = await response.json().catch(() => ({ error: "Save failed" }));
-      throw new Error(detail.error || "Save failed");
-    }
-    setSaveStatus("Saved", "is-saved");
-  }).catch((error) => {
-    setSaveStatus(error.message, "is-error");
-  });
+  state.saveChain = state.saveChain
+    .then(async () => {
+      const response = await fetch("/api/review", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: snapshot,
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({ error: "Save failed" }));
+        throw new Error(detail.error || "Save failed");
+      }
+      setSaveStatus("Saved", "is-saved");
+    })
+    .catch((error) => setSaveStatus(error.message, "is-error"));
   return state.saveChain;
 }
 
 function updateProgress() {
-  const completed = completedCount();
-  const total = state.config.items.length;
-  $("#progress-text").textContent = `${completed} of ${total} complete`;
+  $("#progress-text").textContent = `${completedCount()} of ${state.config.items.length} rated`;
 }
 
-function setZoom(mode) {
-  state.zoom = mode;
-  const frame = $("#evidence-frame");
-  frame.className = `evidence-frame zoom-${mode}`;
-  $$(".zoom-button").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.zoom === mode);
-  });
+function evidenceUrl(caseId, pane, mode) {
+  const effectiveMode = pane === "source" ? "crop" : mode;
+  return `/evidence/${caseId}/${pane}/${effectiveMode}.png`;
 }
 
-function createScoreButton(item, dimension, option, selected) {
+function setActiveItem(caseData) {
+  const items = itemsForCase(caseData);
+  const currentIsValid = items.some((item) => item.item_id === state.activeItemId);
+  if (currentIsValid && !Object.hasOwn(state.document.ratings, state.activeItemId)) return;
+  const unanswered = items.find((item) => !Object.hasOwn(state.document.ratings, item.item_id));
+  state.activeItemId = unanswered ? unanswered.item_id : items[0].item_id;
+}
+
+function scoreButton(item, option) {
+  const current = state.document.ratings[item.item_id]?.score;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "score-button";
-  button.textContent = option.label;
-  button.title = option.description;
-  button.dataset.value = String(option.value);
-  button.setAttribute("role", "radio");
-  button.setAttribute("aria-checked", selected ? "true" : "false");
-  if (selected) button.classList.add("is-selected");
-  button.addEventListener("click", () => {
-    ratingFor(item.item_id).scores[dimension.id] = option.value;
-    scheduleSave();
-    renderScoring(item);
-    updateProgress();
-  });
+  button.dataset.score = String(option.value);
+  button.setAttribute("aria-pressed", current === option.value ? "true" : "false");
+  if (current === option.value) button.classList.add("is-selected");
+
+  const value = document.createElement("strong");
+  value.textContent = String(option.value);
+  const label = document.createElement("span");
+  label.textContent = option.label;
+  button.append(value, label);
+  button.addEventListener("click", () => rateItem(item.item_id, option.value));
   return button;
 }
 
-function renderDimensions(item) {
-  const list = $("#dimension-list");
-  list.replaceChildren();
-  const rating = ratingFor(item.item_id);
-  for (const dimension of state.config.dimensions) {
-    const fragment = $("#dimension-template").content.cloneNode(true);
-    fragment.querySelector(".dimension-name").textContent = dimension.label;
-    const options = fragment.querySelector(".score-options");
-    for (const option of state.config.score_options) {
-      const selected = rating.scores[dimension.id] === option.value;
-      options.append(createScoreButton(item, dimension, option, selected));
-    }
-    list.append(fragment);
+function buildEvidenceCard({ caseData, item = null, pane, label, source = false }) {
+  const card = document.createElement("article");
+  card.className = source ? "evidence-card source-card" : "evidence-card candidate-card";
+  if (item?.item_id === state.activeItemId) card.classList.add("is-active");
+  if (item && Object.hasOwn(state.document.ratings, item.item_id)) card.classList.add("is-rated");
+
+  const header = document.createElement("header");
+  const heading = document.createElement("h3");
+  heading.textContent = label;
+  const status = document.createElement("span");
+  status.className = "card-status";
+  status.textContent = source
+    ? "Reference"
+    : Object.hasOwn(state.document.ratings, item.item_id)
+      ? `Rated ${state.document.ratings[item.item_id].score}`
+      : "Needs rating";
+  header.append(heading, status);
+
+  const imageButton = document.createElement("button");
+  imageButton.type = "button";
+  imageButton.className = "image-stage";
+  imageButton.title = `Open ${label} full-screen`;
+  const image = document.createElement("img");
+  image.src = evidenceUrl(caseData.case_id, pane, state.mode);
+  image.alt = `${caseData.case_id} ${label} ${state.mode} evidence`;
+  image.draggable = false;
+  imageButton.append(image);
+  imageButton.addEventListener("click", () => openLightbox(image.src, `${caseData.case_id} · ${label}`));
+
+  card.append(header, imageButton);
+  if (!source) {
+    const controls = document.createElement("div");
+    controls.className = "candidate-controls";
+    const scores = document.createElement("div");
+    scores.className = "score-grid";
+    scores.setAttribute("aria-label", `Rate ${label}`);
+    state.config.score_options.forEach((option) => scores.append(scoreButton(item, option)));
+
+    const note = document.createElement("input");
+    note.type = "text";
+    note.className = "note-input";
+    note.maxLength = 180;
+    note.placeholder = "Optional note, e.g. logo unreadable";
+    note.setAttribute("aria-label", `Optional note for ${label}`);
+    note.value = state.document.ratings[item.item_id]?.note || state.draftNotes[item.item_id] || "";
+    note.addEventListener("input", () => {
+      state.draftNotes[item.item_id] = note.value;
+      if (Object.hasOwn(state.document.ratings, item.item_id)) {
+        state.document.ratings[item.item_id].note = note.value;
+        scheduleSave();
+      }
+    });
+    controls.append(scores, note);
+    card.append(controls);
   }
+  return card;
 }
 
-function renderIssues(item) {
-  const container = $("#issue-tags");
+function renderCaseProgress() {
+  const container = $("#case-progress");
   container.replaceChildren();
-  const rating = ratingFor(item.item_id);
-  for (const tag of state.config.issue_tags) {
+  state.config.cases.forEach((caseData, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "tag-button";
-    button.textContent = tag;
-    const selected = rating.issues.includes(tag);
-    button.classList.toggle("is-selected", selected);
-    button.setAttribute("aria-pressed", selected ? "true" : "false");
+    button.textContent = caseData.case_id;
+    button.title = caseData.title;
+    button.className = "case-dot";
+    if (index === state.currentCaseIndex) button.classList.add("is-current");
+    if (caseIsComplete(caseData)) button.classList.add("is-complete");
     button.addEventListener("click", () => {
-      if (rating.issues.includes(tag)) {
-        rating.issues = rating.issues.filter((value) => value !== tag);
-      } else {
-        rating.issues.push(tag);
-      }
-      scheduleSave();
-      renderIssues(item);
+      state.currentCaseIndex = index;
+      renderCase();
     });
     container.append(button);
-  }
-  $("#note").value = rating.note;
+  });
 }
 
-function renderScoring(item) {
-  renderDimensions(item);
-  renderIssues(item);
-  const mean = scoreMean(ratingFor(item.item_id).scores);
-  $("#current-mean").textContent = mean === null ? "Mean —" : `Mean ${mean.toFixed(2)}`;
-}
+function renderCase() {
+  const caseData = state.config.cases[state.currentCaseIndex];
+  setActiveItem(caseData);
+  $("#split-label").textContent = caseData.split === "development"
+    ? "Blinded development comparison"
+    : "Frozen holdout";
+  $("#case-title").textContent = `${caseData.case_id} · ${caseData.title}`;
+  $("#case-counter").textContent = `Case ${state.currentCaseIndex + 1} of ${state.config.cases.length}`;
 
-function renderCurrent() {
-  const item = state.config.items[state.currentIndex];
-  $("#split-label").textContent = item.split === "development" ? "Development" : "Frozen holdout";
-  $("#target-title").textContent = `${item.case_id} · Candidate ${item.label}`;
-  const image = $("#evidence-image");
-  image.src = item.evidence_url;
-  image.alt = `${item.case_id} high-resolution review sheet for candidate ${item.label}`;
-  const focusList = $("#focus-list");
-  focusList.replaceChildren(...item.focus.map((text) => {
-    const li = document.createElement("li");
-    li.textContent = text;
-    return li;
+  const focus = $("#focus-list");
+  focus.replaceChildren(...caseData.focus.map((text) => {
+    const item = document.createElement("li");
+    item.textContent = text;
+    return item;
   }));
-  renderScoring(item);
+
+  const grid = $("#comparison-grid");
+  grid.className = `comparison-grid ${caseData.split === "development" ? "development-grid" : "holdout-grid"}`;
+  grid.replaceChildren();
+  grid.append(buildEvidenceCard({
+    caseData,
+    pane: "source",
+    label: "Source garment",
+    source: true,
+  }));
+  itemsForCase(caseData).forEach((item) => {
+    grid.append(buildEvidenceCard({
+      caseData,
+      item,
+      pane: caseData.split === "development" ? item.label : "output",
+      label: caseData.split === "development" ? `Candidate ${item.label}` : "Generated output",
+    }));
+  });
+
+  $$("#mode-tabs button").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.mode === state.mode);
+  });
+  $("#previous-case").disabled = state.currentCaseIndex === 0;
+  $("#next-case").textContent = state.currentCaseIndex === state.config.cases.length - 1
+    ? "View summary →"
+    : "Next case →";
   updateProgress();
-  $("#previous-button").disabled = state.currentIndex === 0;
-  $("#next-button").textContent = state.currentIndex === state.config.items.length - 1 ? "Save & summary" : "Save & next";
+  renderCaseProgress();
 }
 
-function advance() {
-  if (state.currentIndex < state.config.items.length - 1) {
-    state.currentIndex += 1;
-    renderCurrent();
+function rateItem(itemId, score) {
+  const note = state.document.ratings[itemId]?.note || state.draftNotes[itemId] || "";
+  state.document.ratings[itemId] = { score, note };
+  const caseData = state.config.cases[state.currentCaseIndex];
+  const unanswered = itemsForCase(caseData).find(
+    (item) => !Object.hasOwn(state.document.ratings, item.item_id),
+  );
+  state.activeItemId = unanswered ? unanswered.item_id : itemId;
+  renderCase();
+  saveNow();
+}
+
+function changeCase(delta) {
+  const next = state.currentCaseIndex + delta;
+  if (next >= 0 && next < state.config.cases.length) {
+    state.currentCaseIndex = next;
+    state.activeItemId = null;
+    renderCase();
     window.scrollTo({ top: 0, behavior: "smooth" });
-  } else {
-    showSummary();
+    return;
   }
-}
-
-function saveAndAdvance() {
-  scheduleSave();
-  advance();
-}
-
-function applyPreset(value) {
-  const item = state.config.items[state.currentIndex];
-  const rating = ratingFor(item.item_id);
-  for (const dimension of state.config.dimensions) {
-    rating.scores[dimension.id] = value;
-  }
-  scheduleSave();
-  updateProgress();
-  advance();
+  if (delta > 0) showSummary();
 }
 
 function formatMetric(value) {
-  return typeof value === "number" ? value.toFixed(4) : "Pending";
+  return typeof value === "number" ? value.toFixed(3) : "Pending";
 }
 
 function renderMetricList(selector, entries) {
   const container = $(selector);
   container.replaceChildren();
-  for (const [label, value] of entries) {
+  entries.forEach(([label, value]) => {
     const row = document.createElement("div");
     row.className = "metric-row";
     const name = document.createElement("span");
@@ -213,102 +261,91 @@ function renderMetricList(selector, entries) {
     metric.textContent = formatMetric(value);
     row.append(name, metric);
     container.append(row);
-  }
+  });
 }
 
-const overallSchema = [
-  ["structured_outperformed", "Did structured prompting consistently outperform baseline?", ["Yes", "No", "Unclear"], "structured_reason", "Reason"],
-  ["best_of_two_outperformed", "Did best-of-two consistently outperform baseline?", ["Yes", "No", "Unclear"], "best_of_two_reason", "Reason"],
-  ["brand_critical_ready", "Are any outputs sufficiently faithful for brand-critical catalog use?", ["Yes", "No"], "brand_critical_reason", "Reason"],
-  ["automatic_perfect_errors", "Did any automatic-perfect result contain obvious garment errors?", ["Yes", "No"], "automatic_perfect_examples", "Examples"],
-  ["preferred_method", "Overall preferred development method", ["Baseline", "Structured", "Best-of-two", "No reliable winner"], "preferred_method_reason", "Reason"],
-];
-
-function renderOverallQuestions() {
-  const container = $("#overall-questions");
+function renderRanking(ranking) {
+  const container = $("#ranking-summary");
   container.replaceChildren();
-  overallSchema.forEach(([field, question, options, reasonField, reasonLabel], index) => {
-    const group = document.createElement("fieldset");
-    group.className = "overall-question";
-    const legend = document.createElement("legend");
-    legend.textContent = `${index + 1}. ${question}`;
-    group.append(legend);
-    const select = document.createElement("select");
-    select.dataset.overallField = field;
-    select.append(new Option("Select…", ""));
-    for (const option of options) select.append(new Option(option, option));
-    select.value = state.document.overall[field];
-    select.addEventListener("change", () => {
-      state.document.overall[field] = select.value;
-      scheduleSave();
-    });
-    const input = document.createElement("textarea");
-    input.rows = 2;
-    input.maxLength = 500;
-    input.placeholder = reasonLabel;
-    input.value = state.document.overall[reasonField];
-    input.addEventListener("input", () => {
-      state.document.overall[reasonField] = input.value;
-      scheduleSave();
-    });
-    group.append(select, input);
-    container.append(group);
+  ranking.forEach((group) => {
+    const row = document.createElement("div");
+    row.className = "ranking-row";
+    const rank = document.createElement("strong");
+    rank.textContent = `#${group.rank}`;
+    const methods = document.createElement("span");
+    methods.textContent = group.methods.join(" = ");
+    const mean = document.createElement("b");
+    mean.textContent = formatMetric(group.mean);
+    row.append(rank, methods, mean);
+    container.append(row);
   });
 }
 
 async function showSummary() {
+  if (completedCount() !== state.config.items.length) {
+    const firstIncomplete = state.config.cases.findIndex((caseData) => !caseIsComplete(caseData));
+    state.currentCaseIndex = firstIncomplete === -1 ? 0 : firstIncomplete;
+    renderCase();
+    setSaveStatus(`${state.config.items.length - completedCount()} ratings left`, "is-error");
+    return;
+  }
   await saveNow();
   const response = await fetch("/api/summary", { cache: "no-store" });
   if (!response.ok) {
     setSaveStatus("Could not load summary", "is-error");
     return;
   }
-  state.summary = await response.json();
+  const summary = await response.json();
   $("#review-view").hidden = true;
   $("#summary-view").hidden = false;
-  $("#summary-completion").textContent = `${state.summary.completed} of ${state.summary.total} outputs fully scored.`;
+  $("#summary-completion").textContent = `${summary.completed} of ${summary.total} outputs rated.`;
+  renderRanking(summary.development_ranking);
   renderMetricList("#method-summary", [
-    ["Baseline", state.summary.development_method_means.baseline],
-    ["Structured", state.summary.development_method_means.structured],
-    ["Best-of-two", state.summary.development_method_means["best-of-two"]],
+    ["Baseline", summary.development_method_means.baseline],
+    ["Structured", summary.development_method_means.structured],
+    ["Best-of-two", summary.development_method_means["best-of-two"]],
   ]);
   renderMetricList("#holdout-summary", [
-    ["H01", state.summary.holdout_means.H01],
-    ["H02", state.summary.holdout_means.H02],
+    ["H01", summary.holdout_scores.H01],
+    ["H02", summary.holdout_scores.H02],
   ]);
   $("#rater-name").value = state.document.rater.name;
   $("#review-date").value = state.document.rater.review_date;
-  renderOverallQuestions();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function setLightboxZoom(zoom) {
+  const image = $("#lightbox-image");
+  image.classList.toggle("is-fit", zoom === 1);
+  image.style.width = zoom === 1 ? "100%" : `${zoom * 100}%`;
+  image.style.height = zoom === 1 ? "100%" : "auto";
+  $$("[data-lightbox-zoom]").forEach((button) => {
+    button.classList.toggle("is-active", Number(button.dataset.lightboxZoom) === zoom);
+  });
+}
+
+function openLightbox(src, title) {
+  $("#lightbox-title").textContent = title;
+  const image = $("#lightbox-image");
+  image.src = src;
+  image.alt = `${title} enlarged evidence`;
+  setLightboxZoom(1);
+  $("#lightbox").showModal();
+}
+
 function bindEvents() {
-  $("#preserved-next").addEventListener("click", () => applyPreset(1));
-  $("#partial-next").addEventListener("click", () => applyPreset(0.5));
-  $("#major-next").addEventListener("click", () => applyPreset(0));
-  $("#next-button").addEventListener("click", saveAndAdvance);
-  $("#previous-button").addEventListener("click", () => {
-    if (state.currentIndex > 0) {
-      state.currentIndex -= 1;
-      renderCurrent();
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+  $$("#mode-tabs button").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.mode = button.dataset.mode;
+      renderCase();
+    });
   });
-  $("#note").addEventListener("input", (event) => {
-    const item = state.config.items[state.currentIndex];
-    ratingFor(item.item_id).note = event.target.value;
-    scheduleSave();
-  });
-  $$(".zoom-button").forEach((button) => {
-    button.addEventListener("click", () => setZoom(button.dataset.zoom));
-  });
-  $("#evidence-image").addEventListener("click", () => {
-    setZoom(state.zoom === "fit" ? "native" : "fit");
-  });
+  $("#previous-case").addEventListener("click", () => changeCase(-1));
+  $("#next-case").addEventListener("click", () => changeCase(1));
   $("#back-to-review").addEventListener("click", () => {
     $("#summary-view").hidden = true;
     $("#review-view").hidden = false;
-    renderCurrent();
+    renderCase();
   });
   $("#rater-name").addEventListener("input", (event) => {
     state.document.rater.name = event.target.value;
@@ -318,22 +355,25 @@ function bindEvents() {
     state.document.rater.review_date = event.target.value;
     scheduleSave();
   });
+  $("#close-lightbox").addEventListener("click", () => $("#lightbox").close());
+  $$("[data-lightbox-zoom]").forEach((button) => {
+    button.addEventListener("click", () => setLightboxZoom(Number(button.dataset.lightboxZoom)));
+  });
+  $("#lightbox").addEventListener("click", (event) => {
+    if (event.target === $("#lightbox")) $("#lightbox").close();
+  });
   window.addEventListener("beforeunload", () => {
     if (state.saveTimer) saveNow();
   });
   window.addEventListener("keydown", (event) => {
-    if (event.target.matches("input, textarea, select")) return;
-    if (event.key === "ArrowLeft" && state.currentIndex > 0) {
-      state.currentIndex -= 1;
-      renderCurrent();
+    if (event.target.matches("input, textarea, select") || $("#lightbox").open) return;
+    const scoreByKey = { "1": 1, "2": 0.5, "3": 0 };
+    if (Object.hasOwn(scoreByKey, event.key)) {
+      rateItem(state.activeItemId, scoreByKey[event.key]);
+    } else if (event.key === "ArrowLeft") {
+      changeCase(-1);
     } else if (event.key === "ArrowRight") {
-      saveAndAdvance();
-    } else if (event.key.toLowerCase() === "q") {
-      applyPreset(1);
-    } else if (event.key.toLowerCase() === "w") {
-      applyPreset(0.5);
-    } else if (event.key.toLowerCase() === "e") {
-      applyPreset(0);
+      changeCase(1);
     }
   });
 }
@@ -347,15 +387,14 @@ async function init() {
     if (!configResponse.ok || !reviewResponse.ok) throw new Error("Could not load review data");
     state.config = await configResponse.json();
     state.document = await reviewResponse.json();
-    const firstIncomplete = state.config.items.findIndex((item) => !isComplete(item.item_id));
-    state.currentIndex = firstIncomplete === -1 ? 0 : firstIncomplete;
+    const firstIncomplete = state.config.cases.findIndex((caseData) => !caseIsComplete(caseData));
+    state.currentCaseIndex = firstIncomplete === -1 ? 0 : firstIncomplete;
     bindEvents();
-    setZoom("fit");
-    renderCurrent();
+    renderCase();
     setSaveStatus("Saved", "is-saved");
   } catch (error) {
     setSaveStatus(error.message, "is-error");
-    $("#target-title").textContent = "Could not start the review app";
+    $("#case-title").textContent = "Could not start the review app";
   }
 }
 

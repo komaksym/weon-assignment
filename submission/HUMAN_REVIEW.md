@@ -26,14 +26,15 @@ The command opens a local browser app at `http://127.0.0.1:8765`.
 
 The fastest valid workflow is:
 
-1. Inspect the garment crop and detail zoom.
-2. Click **Preserved**, **Partial drift**, or **Major drift** to fill all six dimensions and move to the next output.
-3. Correct only the individual dimensions where the preset is inaccurate.
-4. Optionally select issue tags and add one concise note.
-5. Complete the five overall judgments on the summary page.
-6. Export the submission Markdown when finished.
+1. Compare the source and all candidates on the same case screen.
+2. Start with **Garment crop**; use **Detail zoom** for logos/construction and **Full scene** only for silhouette or visibility.
+3. Give each output one overall score: **1 Preserved**, **0.5 Noticeable drift**, or **0 Major failure**.
+4. Add a short note only when it helps explain a failure.
+5. Continue through D01-D03 and H01-H02, then export the results.
 
-Every edit auto-saves to `submission/human-review-ratings.json`. Restarting the command resumes at the first incomplete output. The summary page exports JSON, CSV, and submission-ready Markdown.
+This is 11 decisions total: three candidates for each development case and one output for each holdout. Click any image to open the high-resolution full-screen inspector. Keyboard shortcuts `1`, `2`, and `3` apply the three scores to the highlighted candidate.
+
+Every rated output auto-saves to `submission/human-review-ratings.json`. Restarting the command resumes at the first incomplete case. If an older six-dimension ratings file exists, the app preserves it as `submission/human-review-ratings.legacy-v1.json` and starts a clean authoritative pass. The summary page exports JSON, CSV, and submission-ready Markdown.
 
 Useful options:
 
@@ -77,27 +78,15 @@ Lighting can still cause real visible garment-color drift. Score the visible gar
 
 ## Scoring rubric
 
-Score each dimension with exactly one value:
+Give each generated output exactly one overall visible garment-fidelity score:
 
 | Score | Meaning |
 | ---: | --- |
-| `1` | Preserved: no meaningful visible discrepancy |
-| `0.5` | Partially preserved: recognizable, but visibly changed |
-| `0` | Drifted, missing, hallucinated, or unacceptable |
-| `-1` | Genuinely not applicable in the source garment |
+| `1` | **Preserved:** visible identity details remain faithful |
+| `0.5` | **Noticeable drift:** recognizable, but important visible details changed |
+| `0` | **Major failure:** garment identity is missing, replaced, or materially incorrect |
 
-Use `-1` only when the source itself makes the dimension inapplicable. Footwear silhouette is applicable.
-
-Rate these six dimensions:
-
-1. **Color** — global and local garment colors.
-2. **Print/logo** — text, branding, graphics, placement, and legibility.
-3. **Silhouette/length** — proportions, outline, garment length, collar or toe shape, and sole thickness.
-4. **Construction details** — pockets, buttons, zippers, seams, panels, closures, and stitching.
-5. **Texture/material** — leather, suede, technical fabric, waxed coating, perforation, and material boundaries.
-6. **Garment presence** — the intended garment is visibly present and worn or positioned appropriately.
-
-The row mean excludes dimensions scored `-1`.
+Consider color, print/logo, silhouette/length, construction, material, and garment presence together. Score only details expected to be visible. If the composition hides an important detail, do not invent evidence; judge what is visible and use the optional note when the visibility failure matters.
 
 ## Case-specific inspection points
 
@@ -110,10 +99,10 @@ The row mean excludes dimensions scored `-1`.
 The app preserves:
 
 - the raw per-output ratings;
-- per-output means;
 - development method means;
-- holdout means reported separately;
-- qualitative answers and reviewer attribution;
+- an automatically derived development ranking, with ties preserved;
+- holdout scores reported separately;
+- optional notes and reviewer attribution;
 - JSON, CSV, and Markdown exports.
 
 Human ratings must not replace, retune, or silently modify the frozen automatic evidence.

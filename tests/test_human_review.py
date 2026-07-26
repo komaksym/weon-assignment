@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
+from PIL import Image
 
 from weon_eval.human_review.model import (
     empty_document,
@@ -86,6 +87,9 @@ def test_public_config_hides_method_names() -> None:
     config = public_config()
     serialized = json.dumps(config)
 
+    assert [case["case_id"] for case in config["cases"]] == ["D01", "D02", "D03", "H01", "H02"]
+    assert config["cases"][0]["title"] == "Technical shorts"
+    assert config["cases"][0]["item_ids"] == ["D01-A", "D01-B", "D01-C"]
     assert config["score_options"] == [
         {"value": 1.0, "label": "Preserved", "description": "Garment details remain faithful"},
         {
@@ -195,11 +199,15 @@ def test_http_api_saves_resumes_serves_evidence_and_exports(tmp_path: Path) -> N
         status, body = _request(f"{base_url}/")
         assert status == 200
         assert b"Human garment review" in body
-        assert b"preserved-next" in body
+        assert b"Compare the garment" in body
+        assert b"comparison-grid" in body
+        assert b"1 = Preserved" in body
 
         status, body = _request(f"{base_url}/static/app.js")
         assert status == 200
-        assert b"saveAndAdvance" in body
+        assert b"rateItem" in body
+        assert b"renderCase" in body
+        assert b"openLightbox" in body
 
         status, body = _request(f"{base_url}/api/config")
         assert status == 200
@@ -229,6 +237,39 @@ def test_http_api_saves_resumes_serves_evidence_and_exports(tmp_path: Path) -> N
         status, body = _request(f"{base_url}/evidence/../../pyproject.toml")
         assert status in {400, 404}
         assert b"project" not in body
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_http_api_serves_individual_high_resolution_evidence_panes(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    evidence_dir = repo_root / "submission" / "review"
+    evidence_dir.mkdir(parents=True)
+    sheet = Image.new("RGB", (450, 280), "#f4f6f8")
+    sheet.save(evidence_dir / "D01-human-review.png")
+    server = create_server(
+        host="127.0.0.1",
+        port=0,
+        repo_root=repo_root,
+        data_path=repo_root / "ratings.json",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_port}"
+
+    try:
+        status, body = _request(f"{base_url}/evidence/D01/A/crop.png")
+        cropped = Image.open(io.BytesIO(body))
+
+        assert status == 200
+        assert cropped.format == "PNG"
+        assert 80 <= cropped.width < sheet.width
+        assert 60 <= cropped.height < sheet.height
+
+        status, _ = _request(f"{base_url}/evidence/D01/unknown/crop.png")
+        assert status == 400
     finally:
         server.shutdown()
         server.server_close()

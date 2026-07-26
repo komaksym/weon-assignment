@@ -13,6 +13,14 @@ from typing import Final, TypedDict, cast
 
 ALLOWED_SCORES: Final[frozenset[float]] = frozenset({0.0, 0.5, 1.0})
 METHOD_ORDER: Final[tuple[str, ...]] = ("baseline", "structured", "best-of-two")
+CASE_ORDER: Final[tuple[str, ...]] = ("D01", "D02", "D03", "H01", "H02")
+CASE_TITLES: Final[dict[str, str]] = {
+    "D01": "Technical shorts",
+    "D02": "Low-top shoes",
+    "D03": "Waxed jacket",
+    "H01": "Footwear holdout",
+    "H02": "Shorts holdout",
+}
 
 CASE_FOCUS: Final[dict[str, tuple[str, ...]]] = {
     "D01": (
@@ -137,6 +145,18 @@ def public_config() -> dict[str, object]:
                 "focus": list(CASE_FOCUS[item.case_id]),
             }
             for item in REVIEW_ITEMS
+        ],
+        "cases": [
+            {
+                "case_id": case_id,
+                "title": CASE_TITLES[case_id],
+                "split": "development" if case_id.startswith("D") else "holdout",
+                "focus": list(CASE_FOCUS[case_id]),
+                "item_ids": [
+                    item.item_id for item in REVIEW_ITEMS if item.case_id == case_id
+                ],
+            }
+            for case_id in CASE_ORDER
         ],
     }
 
