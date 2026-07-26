@@ -24,11 +24,13 @@ The strongest promoted pipeline scored essentially the same as direct generation
 
 A same-run D01-D03 control gave `lite_direct = 1.0000`, identity plus negative constraints `= 1.0000`, and identity plus tight crop `= 0.9667`. The perfect scores were not trustworthy: visual review still found product-identity errors.
 
+The completed attributed author review likewise found substantial drift. On the initial D01-D03 matrix, baseline scored `0.500` and structured/best-of-two scored `0.667`; both frozen baseline holdouts scored `0.500`. Best-of-two selected the structured image in every development case, so those equal human means are duplicate evidence rather than independent confirmation.
+
 **Start with [REPORT.md](REPORT.md).** It is the short submission report and includes the failure taxonomy, methods, frozen evaluation, visual evidence, results, limitations, and production recommendation.
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
-The compact image above is report-only. Use the dedicated [author human-review protocol](submission/HUMAN_REVIEW.md), local rating app, and high-resolution sheets for actual garment-detail scoring. The evaluator reduces the author check to 11 overall decisions; numeric author ratings remain pending.
+The compact image above is report-only. The completed [author human-review results](submission/HUMAN_REVIEW_RESULTS.md) use the dedicated [protocol](submission/HUMAN_REVIEW.md) and high-resolution sheets. All 11 overall decisions are stored as [JSON](submission/human-review-ratings.json) and [CSV](submission/human-review-ratings.csv).
 
 ## What was tested
 
@@ -61,6 +63,8 @@ A separate ChatGPT visual assessment was used as a sanity check. It was **not** 
 
 - [`REPORT.md`](REPORT.md) - final 10-minute report.
 - [`submission/HUMAN_REVIEW.md`](submission/HUMAN_REVIEW.md) - app workflow, rubric, attribution, and recording contract.
+- [`submission/HUMAN_REVIEW_RESULTS.md`](submission/HUMAN_REVIEW_RESULTS.md) - completed attributed human-review summary.
+- [`submission/human-review-ratings.csv`](submission/human-review-ratings.csv) - portable per-output author ratings.
 - [`submission/review/`](submission/review/) - high-resolution D01-D03 and H01-H02 review sheets.
 - [`submission/figures/`](submission/figures/) - compact report figures and UI evidence.
 - [`experiments/`](experiments/) - detailed execution records, metrics, costs, and evaluator caveats.
@@ -78,7 +82,7 @@ cp .env.example .env
 export OPENROUTER_API_KEY="..."
 ```
 
-### Complete the author human review
+### Inspect or reproduce the author human review
 
 No API key or paid request is needed:
 
@@ -86,7 +90,7 @@ No API key or paid request is needed:
 uv run weon-human-review
 ```
 
-The command opens a five-case desktop evaluator with large source/candidate panes. It auto-saves 11 overall ratings to `submission/human-review-ratings.json`, resumes incomplete work, and exports JSON, CSV, and submission-ready Markdown.
+The command opens a five-case desktop evaluator with large source/candidate panes. It loads the completed 11-output author review, auto-saves edits, and exports JSON, CSV, and submission-ready Markdown.
 
 ### Prepare and run one direct baseline case
 
@@ -130,6 +134,6 @@ Normal CI never performs a paid model request. Paid workflows first run dependen
 
 - The study has five distinct cases, with repeated development samples rather than a large benchmark.
 - The automatic judge saturated and overestimated exact product fidelity.
-- No independent human reviewer participated. Author human ratings are prepared but not yet recorded.
+- One attributed author review was completed; no independent or multi-rater human evaluation was performed.
 - Image generation, automatic scoring, and analysis used AI systems; their roles are documented in the report and experiment records.
 - The last observed vendor-key allowance was about `$0.03`; no further meaningful paid run is justified.

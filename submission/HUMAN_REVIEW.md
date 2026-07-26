@@ -2,7 +2,13 @@
 
 ## Status and disclosure
 
-The crop-first review sheets and the local rating app are prepared. Numeric ratings are **pending**.
+The crop-first review sheets, local rating app, and attributed author ratings are complete.
+
+Recorded evidence:
+
+- [human-review-ratings.json](human-review-ratings.json) — authoritative saved review document;
+- [human-review-ratings.csv](human-review-ratings.csv) — portable per-output ratings;
+- [HUMAN_REVIEW_RESULTS.md](HUMAN_REVIEW_RESULTS.md) — readable result summary.
 
 The reviewer will be **Maksym Koval, the assignment author**. This satisfies the task's human sanity-check requirement, but it is not independent or multi-rater human evaluation. The raw ratings and calculated summaries will be committed after the reviewer completes the app.
 
@@ -53,6 +59,12 @@ The app serves these committed PNGs at full resolution:
 - [D03 — waxed jacket](review/D03-human-review.png)
 - [H01 — footwear holdout](review/H01-human-review.png)
 - [H02 — shorts holdout](review/H02-human-review.png)
+
+For the local review session, the app prefers the untouched garment packshots in
+`inputs/garments/` and the untouched generated files in `outputs/human-review/`
+for references and full scenes. Both are ignored local evidence caches; if a
+file is absent, the app falls back to the committed review sheet. Fit mode never
+enlarges an image beyond its available pixels.
 
 Do not consult the existing automatic or ChatGPT visual scores until all ratings are complete.
 

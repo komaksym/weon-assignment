@@ -1,6 +1,6 @@
 # Garment-consistency experiment plan
 
-**Summary:** The four-slice assignment and the follow-up development-only extension are complete. No tested method reliably improved on direct generation, the automatic evaluator saturated before exact product fidelity, and paid exploration stopped with direct generation retained as the operational baseline. High-resolution author-review materials and a dependency-free local rating app are ready; numeric ratings are pending.
+**Summary:** The four-slice assignment, follow-up development-only extension, and attributed author review are complete. No tested method reliably improved on direct generation, the automatic evaluator saturated before exact product fidelity, and paid exploration stopped with direct generation retained as the operational baseline. The author rated all 11 frozen outputs; structured and best-of-two tied at `0.667` versus baseline `0.500` on the three initial development cases, while both baseline holdouts scored `0.500`.
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,7 @@ flowchart LR
     P --> D[Stop: baseline not beaten ✓]
     D --> H[Crop-first review sheets ✓]
     H --> UI[Local author-review app ✓]
-    UI --> R[Author ratings pending]
+    UI --> R[Author ratings complete ✓]
 ```
 
 ## Slice 1 — experiment foundation
@@ -80,22 +80,22 @@ flowchart LR
 
 ## Author human review
 
-**Status:** crop-first evidence, frozen rubric, and local rating app complete; ratings pending.
+**Status:** complete; all 11 frozen outputs were rated by the assignment author.
 
-**Scope:** D01-D03 baseline, structured, and best-of-two outputs plus the frozen H01-H02 baseline outputs. The reviewer uses the same six dimensions and is identified as the assignment author, not an independent rater.
+**Scope:** D01-D03 baseline, structured, and best-of-two outputs plus the frozen H01-H02 baseline outputs. The reviewer assigned one overall visible garment-fidelity score per output and is identified as the assignment author, not an independent rater.
 
 **Evidence:** The review sheets were rebuilt from the original full-resolution development run `30102014361` and holdout run `30113526488`. No model call, output, score, cost, or experiment decision changed.
 
 **Tooling:** `uv run weon-human-review` opens a one-target-at-a-time local evaluator. One-click presets fill all six frozen dimensions, individual corrections remain available, every edit auto-saves atomically, and JSON/CSV/Markdown exports retain raw ratings, method means, holdouts, notes, and attribution.
 
-**Next step:** Complete the app, commit `submission/human-review-ratings.json` and the exported Markdown, then compare the attributed author scores against the frozen automatic and ChatGPT evidence without retuning either path.
+**Result:** Baseline `0.500`, structured `0.667`, and best-of-two `0.667` on D01-D03; H01 and H02 frozen baseline outputs both scored `0.500`. This small attributed sanity check is descriptive evidence, not an independent benchmark, and did not retune the frozen automatic or ChatGPT paths.
 
 ## Evaluation integrity and provenance
 
 - The final evaluator remained `openai/gpt-4.1-mini` with the same six-dimension rubric, fixed source-level applicability masks, opaque candidate identifiers where required, unchanged aggregation, and raw JSON persisted before validation.
 - No automatic retry, score-driven prompt change, method-specific judge prompt, or holdout-driven tuning was used.
 - ChatGPT produced the existing visual-assessment scores from committed contact sheets. No independent human evaluator participated; this remains an explicit limitation.
-- Author human ratings are pending and will be stored as a separate attributed evidence path.
+- Author human ratings are stored as separate JSON, CSV, and Markdown evidence and do not replace the frozen automatic or ChatGPT paths.
 - Perfect or near-perfect automatic scores were treated as evaluator-ceiling evidence, not proof of exact product fidelity.
 
 ## Budget and stopping state

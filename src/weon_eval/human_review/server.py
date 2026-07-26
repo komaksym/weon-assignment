@@ -31,6 +31,13 @@ STATIC_ROOT: Final[Path] = Path(__file__).with_name("static")
 MAX_REQUEST_BYTES: Final[int] = 1_000_000
 
 DEVELOPMENT_PANELS: Final[dict[str, int]] = {"A": 1090, "B": 2235, "C": 3380}
+SOURCE_GARMENTS: Final[dict[str, str]] = {
+    "D01": "shorts.png",
+    "D02": "sneakers.jpg",
+    "D03": "coat.png",
+    "H01": "sneakers.jpg",
+    "H02": "shorts.png",
+}
 
 
 class ReviewStore:
@@ -82,6 +89,20 @@ def _safe_case_id(raw: str) -> str | None:
     if len(raw) != 3 or raw[0] not in {"D", "H"} or not raw[1:].isdigit():
         return None
     return raw
+
+
+def _original_evidence_path(
+    repo_root: Path,
+    *,
+    case_id: str,
+    pane: str,
+    mode: str,
+) -> Path | None:
+    if pane == "source":
+        return repo_root / "inputs" / "garments" / SOURCE_GARMENTS[case_id]
+    if mode == "full":
+        return repo_root / "outputs" / "human-review" / case_id / f"{pane}.jpg"
+    return None
 
 
 def _evidence_box(
@@ -224,6 +245,19 @@ def make_handler(*, repo_root: Path, store: ReviewStore) -> type[BaseHTTPRequest
                 return
 
             pane, mode = parts[1:]
+            original_path = _original_evidence_path(
+                repo_root,
+                case_id=case_id,
+                pane=pane,
+                mode=mode,
+            )
+            if original_path is not None and original_path.is_file():
+                content_type = (
+                    mimetypes.guess_type(original_path.name)[0]
+                    or "application/octet-stream"
+                )
+                self._send_bytes(original_path.read_bytes(), content_type=content_type)
+                return
             with Image.open(evidence_path) as sheet:
                 box = _evidence_box(case_id, pane, mode, image_size=sheet.size)
                 if box is None:

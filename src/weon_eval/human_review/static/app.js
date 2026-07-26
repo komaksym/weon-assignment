@@ -317,8 +317,8 @@ async function showSummary() {
 function setLightboxZoom(zoom) {
   const image = $("#lightbox-image");
   image.classList.toggle("is-fit", zoom === 1);
-  image.style.width = zoom === 1 ? "100%" : `${zoom * 100}%`;
-  image.style.height = zoom === 1 ? "100%" : "auto";
+  image.style.width = zoom === 1 ? "auto" : `${zoom * 100}%`;
+  image.style.height = "auto";
   $$("[data-lightbox-zoom]").forEach((button) => {
     button.classList.toggle("is-active", Number(button.dataset.lightboxZoom) === zoom);
   });

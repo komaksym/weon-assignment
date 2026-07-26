@@ -208,6 +208,13 @@ def test_http_api_saves_resumes_serves_evidence_and_exports(tmp_path: Path) -> N
         assert b"rateItem" in body
         assert b"renderCase" in body
         assert b"openLightbox" in body
+        assert b'image.style.width = zoom === 1 ? "auto"' in body
+
+        status, body = _request(f"{base_url}/static/styles.css")
+        assert status == 200
+        assert b".image-stage img" in body
+        assert b"width: auto; height: auto; max-width: 100%; max-height: 100%" in body
+        assert b".lightbox-image.is-fit" in body
 
         status, body = _request(f"{base_url}/api/config")
         assert status == 200
@@ -270,6 +277,54 @@ def test_http_api_serves_individual_high_resolution_evidence_panes(tmp_path: Pat
 
         status, _ = _request(f"{base_url}/evidence/D01/unknown/crop.png")
         assert status == 400
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_http_api_prefers_untouched_originals_for_source_and_full_scene(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    evidence_dir = repo_root / "submission" / "review"
+    evidence_dir.mkdir(parents=True)
+    Image.new("RGB", (450, 280), "#f4f6f8").save(
+        evidence_dir / "D01-human-review.png"
+    )
+    source = repo_root / "inputs" / "garments" / "shorts.png"
+    candidate = (
+        repo_root
+        / "outputs"
+        / "human-review"
+        / "D01"
+        / "A.jpg"
+    )
+    source.parent.mkdir(parents=True)
+    candidate.parent.mkdir(parents=True)
+    Image.new("RGB", (1600, 1200), "olive").save(source, format="PNG")
+    Image.new("RGB", (896, 1200), "navy").save(candidate, format="JPEG", quality=95)
+
+    server = create_server(
+        host="127.0.0.1",
+        port=0,
+        repo_root=repo_root,
+        data_path=repo_root / "ratings.json",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_port}"
+
+    try:
+        status, body = _request(f"{base_url}/evidence/D01/source/crop.png")
+        served_source = Image.open(io.BytesIO(body))
+        assert status == 200
+        assert served_source.size == (1600, 1200)
+
+        status, body = _request(f"{base_url}/evidence/D01/A/full.png")
+        served_candidate = Image.open(io.BytesIO(body))
+        assert status == 200
+        assert served_candidate.size == (896, 1200)
     finally:
         server.shutdown()
         server.server_close()
