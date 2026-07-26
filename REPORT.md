@@ -15,11 +15,13 @@ The result is negative but actionable: **none of the tested methods reliably bea
 
 Those scores overstate real quality. Methods sometimes received `1.0000` while logos were unreadable, pocket and zipper geometry changed, shoe panels and soles drifted, and materials were simplified. The automatic judge was useful for rough screening, but it saturated before exact product fidelity was achieved.
 
+The attributed author review confirmed that gap. Across the initial D01-D03 matrix, baseline scored `0.500`, while structured and best-of-two each scored `0.667`; both frozen baseline holdouts scored `0.500`. This is a useful sanity check, not proof of general improvement: it is one non-independent rater over three development cases, and best-of-two selected the exact structured image in all three cases.
+
 **Recommendation:** retain direct generation as the operational baseline. In production, add a cheap garment-region quality gate and escalate only failures to resampling, targeted repair, or human review.
 
 ![Development comparison](submission/figures/development-comparison.jpg)
 
-The compact collage is a report summary, not a rating surface. Human scoring should use the separate [high-resolution author-review sheets](submission/HUMAN_REVIEW.md), which show each source garment, full generated candidate, and garment-region crop. The sheets are prepared; numeric author ratings are pending.
+The compact collage is a report summary, not a rating surface. The completed [author human review](submission/HUMAN_REVIEW_RESULTS.md) used the separate [high-resolution review sheets](submission/HUMAN_REVIEW.md), which show each source garment, full generated candidate, and garment-region crop.
 
 ## 1. Failure-mode analysis
 
@@ -67,7 +69,7 @@ Every final candidate was judged on six dimensions:
 
 Scores were `1`, `0.5`, `0`, or `-1` only when the source truly made a dimension inapplicable. The final evaluator remained `openai/gpt-4.1-mini` with the same prompt, schema, applicability masks, and aggregation. Candidate IDs were opaque where comparison or selection occurred. Raw evaluator JSON was persisted before validation. Method selection had no access to H01-H02, no automatic retries, and no method-specific judge prompt or metric reweighting.
 
-A separate ChatGPT visual assessment reviewed committed contact sheets using the same concepts. This was an AI sanity check, **not independent human evaluation**. A human sanity-check path is now prepared from the frozen full-resolution artifacts; its pending ratings will be explicitly attributed to the assignment author.
+A separate ChatGPT visual assessment reviewed committed contact sheets using the same concepts. This was an AI sanity check, **not independent human evaluation**. The completed human sanity check is explicitly attributed to the assignment author and remains separate from the frozen automatic and ChatGPT paths.
 
 ## 3. Results
 
@@ -120,9 +122,16 @@ H01's evaluator response incorrectly assigned `silhouette_length = -1` to footwe
 
 ### Author human review
 
-The [author human-review protocol](submission/HUMAN_REVIEW.md) covers all nine initial development method outputs plus the two frozen holdouts using the same six dimensions. It deliberately excludes scene realism and asks the reviewer to score source-to-garment fidelity from the high-resolution detail crops.
+The [author human-review protocol](submission/HUMAN_REVIEW.md) covers all nine initial development outputs plus the two frozen holdouts. The assignment author assigned one overall visible garment-fidelity score per output on a `1 / 0.5 / 0` scale while excluding scene realism, pose, and aesthetics. The raw [JSON](submission/human-review-ratings.json), portable [CSV](submission/human-review-ratings.csv), and readable [result summary](submission/HUMAN_REVIEW_RESULTS.md) are committed separately.
 
-The materials are complete, but the numeric ratings are not yet recorded. Until they are supplied, this report makes no human-score claim. When added, they will remain a separate attributed evidence path and will not replace or retune the frozen automatic or ChatGPT results.
+| Case | Baseline | Structured | Best-of-two |
+| --- | ---: | ---: | ---: |
+| D01 shorts | 1.0 | 0.5 | 0.5 |
+| D02 sneakers | 0.5 | 1.0 | 1.0 |
+| D03 jacket | 0.0 | 0.5 | 0.5 |
+| **Development mean** | **0.500** | **0.667** | **0.667** |
+
+Both frozen baseline holdouts scored `0.5`. Structured exceeded baseline descriptively in two of the three development cases, but this does not establish a reliable improvement: there is one author-rater, only three distinct development cases, and no repeated human-rated seeds. Best-of-two chose structured A in every case, so its three reviewed images are byte-identical to the structured images; the matching means are duplicate evidence, not independent confirmation. These ratings were added after the methods and holdouts were frozen and did not retune any result.
 
 ## 4. Practical conclusion and production design
 
@@ -166,6 +175,6 @@ With a fresh budget and independent raters, I would prioritize:
 
 ## Limitations and disclosure
 
-This is a focused exploration, not a large benchmark. It uses five distinct cases with repeated development samples. No independent human reviewer participated. High-resolution author-review materials are prepared, but their ratings are pending. ChatGPT performed the existing visual-assessment path and assisted with implementation, orchestration, analysis, evidence layout, and writing. Image outputs came from the tested generation models; automatic scores and best-of-two selection used GPT-4.1 Mini.
+This is a focused exploration, not a large benchmark. It uses five distinct cases with repeated development samples. One attributed author review was completed, but no independent or multi-rater human evaluation was performed. ChatGPT performed the separate visual-assessment path and assisted with implementation, orchestration, analysis, evidence layout, and writing. Image outputs came from the tested generation models; automatic scores and best-of-two selection used GPT-4.1 Mini.
 
 The final vendor-key allowance observation was about `$0.03`. The provider balance endpoint showed delayed or non-monotonic values at very low balance, so per-request costs and committed workflow artifacts are treated as the durable accounting evidence.

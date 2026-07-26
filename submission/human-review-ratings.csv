@@ -1,0 +1,12 @@
+item_id,case_id,candidate_label,method,split,score,note
+D01-A,D01,A,baseline,development,1,
+D01-B,D01,B,structured,development,0.5,
+D01-C,D01,C,best-of-two,development,0.5,
+D02-A,D02,A,baseline,development,0.5,
+D02-B,D02,B,structured,development,1,
+D02-C,D02,C,best-of-two,development,1,
+D03-A,D03,A,baseline,development,0,
+D03-B,D03,B,structured,development,0.5,
+D03-C,D03,C,best-of-two,development,0.5,
+H01-H,H01,Output,frozen baseline,holdout,0.5,
+H02-H,H02,Output,frozen baseline,holdout,0.5,

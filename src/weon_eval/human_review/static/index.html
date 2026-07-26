@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Human garment review</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Human garment review</h1>
+        <p>Author sanity check · 11 overall decisions</p>
+      </div>
+      <div class="topbar-status">
+        <strong id="progress-text">Loading…</strong>
+        <span id="save-status" class="save-status" role="status" aria-live="polite">Loading</span>
+      </div>
+    </header>
+
+    <main id="review-view">
+      <section class="instruction-bar" aria-labelledby="instruction-title">
+        <div>
+          <h2 id="instruction-title">Compare the garment—not the photograph</h2>
+          <p>Judge only visible garment identity: color, logo/text, shape, construction, material, and presence. Ignore the model, pose, background, and general aesthetics.</p>
+        </div>
+        <div class="scale-key" aria-label="Rating scale">
+          <span class="key-good"><strong>1 = Preserved</strong><small>faithful details</small></span>
+          <span class="key-partial"><strong>0.5 = Noticeable drift</strong><small>important changes</small></span>
+          <span class="key-bad"><strong>0 = Major failure</strong><small>identity not preserved</small></span>
+        </div>
+      </section>
+
+      <section class="review-workspace" aria-label="Current garment case">
+        <header class="case-header">
+          <div>
+            <span id="split-label" class="split-label"></span>
+            <h2 id="case-title">Loading review…</h2>
+            <p id="case-counter" class="case-counter"></p>
+          </div>
+          <div id="mode-tabs" class="mode-tabs" role="group" aria-label="Evidence view">
+            <button type="button" data-mode="crop" class="is-active">Garment crop</button>
+            <button type="button" data-mode="detail">Detail zoom</button>
+            <button type="button" data-mode="full">Full scene</button>
+          </div>
+        </header>
+
+        <div class="focus-row">
+          <strong>Inspect:</strong>
+          <ul id="focus-list"></ul>
+          <span>Click any image to inspect it full-screen.</span>
+        </div>
+
+        <div id="comparison-grid" class="comparison-grid" aria-live="polite"></div>
+
+        <footer class="case-footer">
+          <button id="previous-case" type="button" class="secondary-button">← Previous case</button>
+          <div id="case-progress" class="case-progress" aria-label="Case progress"></div>
+          <button id="next-case" type="button" class="primary-button">Next case →</button>
+        </footer>
+        <p class="keyboard-help">Keyboard: <kbd>1</kbd> preserved · <kbd>2</kbd> drift · <kbd>3</kbd> major failure · <kbd>←</kbd>/<kbd>→</kbd> cases</p>
+      </section>
+    </main>
+
+    <main id="summary-view" class="summary-view" hidden>
+      <header class="summary-header">
+        <div>
+          <span class="split-label">Complete</span>
+          <h2>Human review summary</h2>
+          <p id="summary-completion"></p>
+        </div>
+        <button id="back-to-review" type="button" class="secondary-button">Back to ratings</button>
+      </header>
+
+      <section class="ranking-panel">
+        <div>
+          <h3>Development ranking</h3>
+          <p>Mean overall garment-fidelity score across D01-D03. Ties remain ties.</p>
+        </div>
+        <div id="ranking-summary" class="ranking-list"></div>
+      </section>
+
+      <div class="summary-grid">
+        <section class="summary-panel">
+          <h3>Development method means</h3>
+          <div id="method-summary" class="metric-list"></div>
+        </section>
+        <section class="summary-panel">
+          <h3>Frozen holdouts</h3>
+          <p>Reported separately; they do not affect the method ranking.</p>
+          <div id="holdout-summary" class="metric-list"></div>
+        </section>
+      </div>
+
+      <section class="summary-panel reviewer-panel">
+        <h3>Reviewer attribution</h3>
+        <div class="field-grid">
+          <label>Name<input id="rater-name" type="text"></label>
+          <label>Review date<input id="review-date" type="date"></label>
+        </div>
+        <p class="disclosure">Attributed author sanity check—not independent or multi-rater evaluation.</p>
+      </section>
+
+      <section class="export-panel">
+        <div>
+          <h3>Export results</h3>
+          <p>Raw decisions, method means/ranking, holdouts, notes, and attribution.</p>
+        </div>
+        <div class="export-actions">
+          <a class="secondary-button" href="/api/export/ratings.json" download>JSON</a>
+          <a class="secondary-button" href="/api/export/ratings.csv" download>CSV</a>
+          <a class="primary-button" href="/api/export/report.md" download>Markdown</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="lightbox" class="lightbox">
+    <div class="lightbox-header">
+      <strong id="lightbox-title">Evidence</strong>
+      <div class="lightbox-actions">
+        <button type="button" data-lightbox-zoom="0.75">−</button>
+        <button type="button" data-lightbox-zoom="1">Fit</button>
+        <button type="button" data-lightbox-zoom="1.5">150%</button>
+        <button type="button" data-lightbox-zoom="2">200%</button>
+        <button id="close-lightbox" type="button" class="close-button">Close</button>
+      </div>
+    </div>
+    <div class="lightbox-canvas">
+      <img id="lightbox-image" alt="">
+    </div>
+  </dialog>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

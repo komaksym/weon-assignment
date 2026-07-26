@@ -1,0 +1,54 @@
+{
+  "rater": {
+    "name": "Maksym Koval",
+    "review_date": "2026-07-26",
+    "review_type": "Author human review"
+  },
+  "ratings": {
+    "D01-A": {
+      "note": "",
+      "score": 1.0
+    },
+    "D01-B": {
+      "note": "",
+      "score": 0.5
+    },
+    "D01-C": {
+      "note": "",
+      "score": 0.5
+    },
+    "D02-A": {
+      "note": "",
+      "score": 0.5
+    },
+    "D02-B": {
+      "note": "",
+      "score": 1.0
+    },
+    "D02-C": {
+      "note": "",
+      "score": 1.0
+    },
+    "D03-A": {
+      "note": "",
+      "score": 0.0
+    },
+    "D03-B": {
+      "note": "",
+      "score": 0.5
+    },
+    "D03-C": {
+      "note": "",
+      "score": 0.5
+    },
+    "H01-H": {
+      "note": "",
+      "score": 0.5
+    },
+    "H02-H": {
+      "note": "",
+      "score": 0.5
+    }
+  },
+  "schema_version": 2
+}

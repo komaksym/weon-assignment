@@ -16,6 +16,7 @@ weon-development = "weon_eval.development_cli:main"
 weon-holdout = "weon_eval.holdout_cli:main"
 weon-budget-search = "weon_eval.budget_search_cli:main"
 weon-promotion-search = "weon_eval.promotion_cli:main"
+weon-human-review = "weon_eval.human_review_cli:main"
 
 [dependency-groups]
 dev = [
