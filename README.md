@@ -28,9 +28,9 @@ The completed attributed author review likewise found substantial drift. On the 
 
 **Start with [REPORT.md](REPORT.md).** It is the short submission report and includes the failure taxonomy, methods, frozen evaluation, visual evidence, results, limitations, and production recommendation.
 
-![Development comparison](submission/figures/development-comparison.jpg)
+[![High-resolution development comparison: source garment, baseline, structured, and best-of-two outputs for D01-D03](submission/figures/development-comparison.jpg)](submission/figures/development-comparison.jpg)
 
-The compact image above is report-only. The completed [author human-review results](submission/HUMAN_REVIEW_RESULTS.md) use the dedicated [protocol](submission/HUMAN_REVIEW.md) and high-resolution sheets. All 11 overall decisions are stored as [JSON](submission/human-review-ratings.json) and [CSV](submission/human-review-ratings.csv).
+Click the comparison to inspect the 3200 px source image. The completed [author human-review results](submission/HUMAN_REVIEW_RESULTS.md) use the dedicated [protocol](submission/HUMAN_REVIEW.md) and crop-first review sheets for finer details. All 11 overall decisions are stored as [JSON](submission/human-review-ratings.json) and [CSV](submission/human-review-ratings.csv).
 
 ## What was tested
 
