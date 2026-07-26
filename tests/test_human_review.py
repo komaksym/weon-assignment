@@ -12,20 +12,16 @@ from urllib.request import Request, urlopen
 import pytest
 
 from weon_eval.human_review.model import (
-    DIMENSIONS,
     empty_document,
     public_config,
     render_csv,
+    render_json,
     render_markdown,
     summarize,
     validate_document,
 )
 from weon_eval.human_review.server import ReviewStore, create_server
 from weon_eval.human_review_cli import find_repo_root, parser
-
-
-def _scores(value: float = 1.0) -> dict[str, float]:
-    return {dimension: value for dimension in DIMENSIONS}
 
 
 def _complete_document() -> dict[str, Any]:
@@ -46,8 +42,7 @@ def _complete_document() -> dict[str, Any]:
         "H02-H",
     ):
         ratings[item_id] = {
-            "scores": _scores(),
-            "issues": [],
+            "score": 1.0,
             "note": "",
         }
     return document
@@ -67,46 +62,43 @@ def _request(url: str, *, method: str = "GET", payload: object | None = None) ->
         return exc.code, exc.read()
 
 
-def test_summary_excludes_na_and_missing_scores() -> None:
-    document = _complete_document()
-    ratings = document["ratings"]
-    assert isinstance(ratings, dict)
-    ratings["D01-A"] = {
-        "scores": {
-            "color": 1.0,
-            "print_logo": -1.0,
-            "silhouette_length": 0.5,
-            "construction_details": 0.0,
-        },
-        "issues": ["construction"],
-        "note": "zipper moved",
-    }
+def test_empty_document_starts_authoritative_pass_without_ratings() -> None:
+    document = empty_document()
 
-    summary = summarize(validate_document(document))
-
-    outputs = summary["outputs"]
-    assert isinstance(outputs, list)
-    d01_a = next(row for row in outputs if row["item_id"] == "D01-A")
-    assert d01_a["mean"] == pytest.approx(0.5)
-    assert d01_a["complete"] is False
+    assert document["schema_version"] == 2
+    assert document["ratings"] == {}
+    assert summarize(document)["completed"] == 0
 
 
 def test_validate_document_rejects_unknown_score_without_mutating_input() -> None:
     document = _complete_document()
     ratings = document["ratings"]
     assert isinstance(ratings, dict)
-    ratings["D01-A"]["scores"]["color"] = 0.75
+    ratings["D01-A"]["score"] = 0.75
 
     with pytest.raises(ValueError, match="invalid score"):
         validate_document(document)
 
-    assert ratings["D01-A"]["scores"]["color"] == 0.75
+    assert ratings["D01-A"]["score"] == 0.75
 
 
 def test_public_config_hides_method_names() -> None:
     config = public_config()
     serialized = json.dumps(config)
 
+    assert config["score_options"] == [
+        {"value": 1.0, "label": "Preserved", "description": "Garment details remain faithful"},
+        {
+            "value": 0.5,
+            "label": "Noticeable drift",
+            "description": "Recognizable, but important details changed",
+        },
+        {
+            "value": 0.0,
+            "label": "Major failure",
+            "description": "Garment identity is not preserved",
+        },
+    ]
     assert "baseline" not in serialized
     assert "structured" not in serialized
     assert "best-of-two" not in serialized
@@ -117,18 +109,22 @@ def test_summary_computes_development_method_means_and_separate_holdouts() -> No
     document = _complete_document()
     ratings = document["ratings"]
     assert isinstance(ratings, dict)
-    ratings["D01-A"]["scores"] = _scores(0.0)
-    ratings["D02-A"]["scores"] = _scores(0.5)
-    ratings["D03-A"]["scores"] = _scores(1.0)
-    ratings["H01-H"]["scores"] = _scores(0.5)
-    ratings["H02-H"]["scores"] = _scores(1.0)
+    ratings["D01-A"]["score"] = 0.0
+    ratings["D02-A"]["score"] = 0.5
+    ratings["D03-A"]["score"] = 1.0
+    ratings["H01-H"]["score"] = 0.5
+    ratings["H02-H"]["score"] = 1.0
 
     summary = summarize(validate_document(document))
 
     assert summary["development_method_means"]["baseline"] == pytest.approx(0.5)
     assert summary["development_method_means"]["structured"] == pytest.approx(1.0)
     assert summary["development_method_means"]["best-of-two"] == pytest.approx(1.0)
-    assert summary["holdout_means"] == {"H01": 0.5, "H02": 1.0}
+    assert summary["development_ranking"] == [
+        {"rank": 1, "methods": ["structured", "best-of-two"], "mean": 1.0},
+        {"rank": 2, "methods": ["baseline"], "mean": 0.5},
+    ]
+    assert summary["holdout_scores"] == {"H01": 0.5, "H02": 1.0}
 
 
 def test_exports_include_raw_ratings_means_and_method_mapping() -> None:
@@ -136,12 +132,18 @@ def test_exports_include_raw_ratings_means_and_method_mapping() -> None:
 
     markdown = render_markdown(document)
     rows = list(csv.DictReader(io.StringIO(render_csv(document))))
+    exported_json = json.loads(render_json(document))
 
-    assert "D01 — baseline" in markdown
+    assert "D01 — A" in markdown
     assert "Development method means" in markdown
     assert rows[0]["item_id"] == "D01-A"
     assert rows[0]["method"] == "baseline"
-    assert rows[0]["mean"] == "1.0000"
+    assert rows[0]["score"] == "1"
+    assert exported_json["summary"]["development_ranking"][0]["methods"] == [
+        "baseline",
+        "structured",
+        "best-of-two",
+    ]
 
 
 def test_review_store_returns_empty_document_and_round_trips_atomically(tmp_path: Path) -> None:
@@ -154,8 +156,22 @@ def test_review_store_returns_empty_document_and_round_trips_atomically(tmp_path
     store.save(document)
 
     assert store.load() == document
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 1
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 2
     assert not list(path.parent.glob("*.tmp"))
+
+
+def test_review_store_archives_legacy_pass_and_starts_empty(tmp_path: Path) -> None:
+    path = tmp_path / "submission" / "human-review-ratings.json"
+    path.parent.mkdir(parents=True)
+    legacy = {"schema_version": 1, "ratings": {"D01-A": {"scores": {"color": 1.0}}}}
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    document = ReviewStore(path).load()
+
+    archive = path.with_name("human-review-ratings.legacy-v1.json")
+    assert document == empty_document()
+    assert json.loads(archive.read_text(encoding="utf-8")) == legacy
+    assert json.loads(path.read_text(encoding="utf-8")) == empty_document()
 
 
 def test_http_api_saves_resumes_serves_evidence_and_exports(tmp_path: Path) -> None:
@@ -200,7 +216,7 @@ def test_http_api_saves_resumes_serves_evidence_and_exports(tmp_path: Path) -> N
 
         status, body = _request(f"{base_url}/api/review")
         assert status == 200
-        assert json.loads(body)["ratings"]["D01-A"]["scores"]["color"] == 1.0
+        assert json.loads(body)["ratings"]["D01-A"]["score"] == 1.0
 
         status, body = _request(f"{base_url}/evidence/D01.png")
         assert status == 200
@@ -238,7 +254,7 @@ def test_http_api_rejects_invalid_save_and_keeps_previous_state(tmp_path: Path) 
 
     try:
         invalid = _complete_document()
-        invalid["ratings"]["D01-A"]["scores"]["color"] = 0.75
+        invalid["ratings"]["D01-A"]["score"] = 0.75
         status, body = _request(f"{base_url}/api/review", method="PUT", payload=invalid)
         assert status == 400
         assert b"invalid score" in body

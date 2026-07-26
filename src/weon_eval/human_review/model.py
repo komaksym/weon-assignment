@@ -1,4 +1,4 @@
-"""Frozen rubric, validation, aggregation, and export helpers for human review."""
+"""Review manifest, validation, aggregation, and export helpers."""
 
 from __future__ import annotations
 
@@ -11,35 +11,8 @@ from datetime import date
 from statistics import fmean
 from typing import Final, TypedDict, cast
 
-DIMENSIONS: Final[tuple[str, ...]] = (
-    "color",
-    "print_logo",
-    "silhouette_length",
-    "construction_details",
-    "texture_material",
-    "garment_presence",
-)
-
-DIMENSION_LABELS: Final[dict[str, str]] = {
-    "color": "Color",
-    "print_logo": "Print/logo",
-    "silhouette_length": "Silhouette/length",
-    "construction_details": "Construction details",
-    "texture_material": "Texture/material",
-    "garment_presence": "Garment presence",
-}
-
-ALLOWED_SCORES: Final[frozenset[float]] = frozenset({-1.0, 0.0, 0.5, 1.0})
-ISSUE_TAGS: Final[tuple[str, ...]] = (
-    "color",
-    "logo/text",
-    "silhouette",
-    "construction",
-    "material",
-    "presence",
-    "lighting confound",
-    "pose confound",
-)
+ALLOWED_SCORES: Final[frozenset[float]] = frozenset({0.0, 0.5, 1.0})
+METHOD_ORDER: Final[tuple[str, ...]] = ("baseline", "structured", "best-of-two")
 
 CASE_FOCUS: Final[dict[str, tuple[str, ...]]] = {
     "D01": (
@@ -72,7 +45,7 @@ CASE_FOCUS: Final[dict[str, tuple[str, ...]]] = {
 
 @dataclass(frozen=True, slots=True)
 class ReviewItem:
-    """One candidate to score."""
+    """One generated output to score."""
 
     item_id: str
     case_id: str
@@ -95,8 +68,8 @@ REVIEW_ITEMS: Final[tuple[ReviewItem, ...]] = (
     ReviewItem("D03-A", "D03", "A", "baseline", "development"),
     ReviewItem("D03-B", "D03", "B", "structured", "development"),
     ReviewItem("D03-C", "D03", "C", "best-of-two", "development"),
-    ReviewItem("H01-H", "H01", "Frozen output", "frozen baseline", "holdout"),
-    ReviewItem("H02-H", "H02", "Frozen output", "frozen baseline", "holdout"),
+    ReviewItem("H01-H", "H01", "Output", "frozen baseline", "holdout"),
+    ReviewItem("H02-H", "H02", "Output", "frozen baseline", "holdout"),
 )
 
 ITEM_BY_ID: Final[dict[str, ReviewItem]] = {item.item_id: item for item in REVIEW_ITEMS}
@@ -109,71 +82,51 @@ class RaterData(TypedDict):
 
 
 class RatingData(TypedDict):
-    scores: dict[str, float]
-    issues: list[str]
+    score: float
     note: str
-
-
-class OverallData(TypedDict):
-    structured_outperformed: str
-    structured_reason: str
-    best_of_two_outperformed: str
-    best_of_two_reason: str
-    brand_critical_ready: str
-    brand_critical_reason: str
-    automatic_perfect_errors: str
-    automatic_perfect_examples: str
-    preferred_method: str
-    preferred_method_reason: str
 
 
 class ReviewDocument(TypedDict):
     schema_version: int
     rater: RaterData
     ratings: dict[str, RatingData]
-    overall: OverallData
 
 
 def empty_document() -> ReviewDocument:
-    """Return a fresh, partially completable review document."""
+    """Return a fresh authoritative review document."""
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "rater": {
             "name": "Maksym Koval",
             "review_date": date.today().isoformat(),
             "review_type": "Author human review",
         },
         "ratings": {},
-        "overall": {
-            "structured_outperformed": "",
-            "structured_reason": "",
-            "best_of_two_outperformed": "",
-            "best_of_two_reason": "",
-            "brand_critical_ready": "",
-            "brand_critical_reason": "",
-            "automatic_perfect_errors": "",
-            "automatic_perfect_examples": "",
-            "preferred_method": "",
-            "preferred_method_reason": "",
-        },
     }
 
 
 def public_config() -> dict[str, object]:
-    """Return UI configuration without method identities."""
+    """Return browser configuration without revealing development methods."""
 
     return {
-        "dimensions": [
-            {"id": dimension, "label": DIMENSION_LABELS[dimension]} for dimension in DIMENSIONS
-        ],
         "score_options": [
-            {"value": 1.0, "label": "1", "description": "Preserved"},
-            {"value": 0.5, "label": "0.5", "description": "Partially preserved"},
-            {"value": 0.0, "label": "0", "description": "Drifted"},
-            {"value": -1.0, "label": "N/A", "description": "Not applicable in source"},
+            {
+                "value": 1.0,
+                "label": "Preserved",
+                "description": "Garment details remain faithful",
+            },
+            {
+                "value": 0.5,
+                "label": "Noticeable drift",
+                "description": "Recognizable, but important details changed",
+            },
+            {
+                "value": 0.0,
+                "label": "Major failure",
+                "description": "Garment identity is not preserved",
+            },
         ],
-        "issue_tags": list(ISSUE_TAGS),
         "items": [
             {
                 "item_id": item.item_id,
@@ -200,28 +153,21 @@ def _require_string(value: object, *, path: str) -> str:
     return value
 
 
-def _validate_scores(value: object, *, item_id: str) -> dict[str, float]:
-    raw_scores = _require_mapping(value, path=f"ratings.{item_id}.scores")
-    unknown = set(raw_scores) - set(DIMENSIONS)
-    if unknown:
-        raise ValueError(f"ratings.{item_id}.scores contains unknown dimensions: {sorted(unknown)}")
-    scores: dict[str, float] = {}
-    for dimension, raw_score in raw_scores.items():
-        if isinstance(raw_score, bool) or not isinstance(raw_score, (int, float)):
-            raise ValueError(f"ratings.{item_id}.{dimension} must be numeric")
-        score = float(raw_score)
-        if score not in ALLOWED_SCORES:
-            raise ValueError(f"invalid score for {item_id}.{dimension}: {score}")
-        scores[dimension] = score
-    return scores
+def _validate_score(value: object, *, item_id: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"ratings.{item_id}.score must be numeric")
+    score = float(value)
+    if score not in ALLOWED_SCORES:
+        raise ValueError(f"invalid score for {item_id}: {score}")
+    return score
 
 
 def validate_document(value: object) -> ReviewDocument:
     """Validate and deep-copy a partially completed review document."""
 
     root = _require_mapping(value, path="document")
-    if root.get("schema_version") != 1:
-        raise ValueError("schema_version must equal 1")
+    if root.get("schema_version") != 2:
+        raise ValueError("schema_version must equal 2")
 
     rater_raw = _require_mapping(root.get("rater"), path="rater")
     rater: RaterData = {
@@ -241,70 +187,50 @@ def validate_document(value: object) -> ReviewDocument:
 
     ratings: dict[str, RatingData] = {}
     for item_id, raw_rating in ratings_raw.items():
-        rating_map = _require_mapping(raw_rating, path=f"ratings.{item_id}")
-        raw_issues = rating_map.get("issues", [])
-        issues_are_strings = isinstance(raw_issues, list) and all(
-            isinstance(issue, str) for issue in raw_issues
-        )
-        if not issues_are_strings:
-            raise ValueError(f"ratings.{item_id}.issues must be a list of strings")
-        issues = cast(list[str], raw_issues)
-        unknown_issues = set(issues) - set(ISSUE_TAGS)
-        if unknown_issues:
+        rating = _require_mapping(raw_rating, path=f"ratings.{item_id}")
+        unknown_fields = set(rating) - {"score", "note"}
+        if unknown_fields:
             raise ValueError(
-                f"ratings.{item_id}.issues contains unknown tags: {sorted(unknown_issues)}"
+                f"ratings.{item_id} contains unknown fields: {sorted(unknown_fields)}"
             )
         ratings[item_id] = {
-            "scores": _validate_scores(rating_map.get("scores", {}), item_id=item_id),
-            "issues": list(dict.fromkeys(issues)),
-            "note": _require_string(rating_map.get("note", ""), path=f"ratings.{item_id}.note"),
+            "score": _validate_score(rating.get("score"), item_id=item_id),
+            "note": _require_string(rating.get("note", ""), path=f"ratings.{item_id}.note"),
         }
 
-    overall_defaults = empty_document()["overall"]
-    overall_raw = _require_mapping(root.get("overall", {}), path="overall")
-    unknown_overall = set(overall_raw) - set(overall_defaults)
-    if unknown_overall:
-        raise ValueError(f"overall contains unknown fields: {sorted(unknown_overall)}")
-    overall: OverallData = cast(
-        OverallData,
-        {
-            key: _require_string(overall_raw.get(key, default), path=f"overall.{key}")
-            for key, default in overall_defaults.items()
-        },
-    )
-
     document: ReviewDocument = {
-        "schema_version": 1,
+        "schema_version": 2,
         "rater": rater,
         "ratings": ratings,
-        "overall": overall,
     }
     return copy.deepcopy(document)
 
 
-def _mean(scores: dict[str, float]) -> float | None:
-    applicable = [score for score in scores.values() if score != -1.0]
-    if not applicable:
-        return None
-    return fmean(applicable)
+def _rank_methods(means: dict[str, float | None]) -> list[dict[str, object]]:
+    groups: dict[float, list[str]] = {}
+    for method in METHOD_ORDER:
+        mean = means[method]
+        if mean is not None:
+            groups.setdefault(mean, []).append(method)
+    return [
+        {"rank": rank, "methods": methods, "mean": mean}
+        for rank, (mean, methods) in enumerate(
+            sorted(groups.items(), key=lambda group: group[0], reverse=True),
+            start=1,
+        )
+    ]
 
 
 def summarize(document: ReviewDocument) -> dict[str, object]:
-    """Calculate per-output, development-method, and holdout summaries."""
+    """Calculate per-output scores, development means/ranking, and holdouts."""
 
     outputs: list[dict[str, object]] = []
-    method_values: dict[str, list[float]] = {
-        "baseline": [],
-        "structured": [],
-        "best-of-two": [],
-    }
-    holdout_means: dict[str, float] = {}
+    method_values: dict[str, list[float]] = {method: [] for method in METHOD_ORDER}
+    holdout_scores: dict[str, float] = {}
 
     for item in REVIEW_ITEMS:
         rating = document["ratings"].get(item.item_id)
-        scores = rating["scores"] if rating is not None else {}
-        mean = _mean(scores)
-        complete = set(scores) == set(DIMENSIONS)
+        score = rating["score"] if rating is not None else None
         outputs.append(
             {
                 "item_id": item.item_id,
@@ -312,68 +238,64 @@ def summarize(document: ReviewDocument) -> dict[str, object]:
                 "label": item.label,
                 "method": item.method,
                 "split": item.split,
-                "mean": mean,
-                "complete": complete,
-                "scores": dict(scores),
-                "issues": list(rating["issues"]) if rating is not None else [],
+                "score": score,
+                "complete": rating is not None,
                 "note": rating["note"] if rating is not None else "",
             }
         )
-        if mean is None:
+        if score is None:
             continue
         if item.split == "development":
-            method_values[item.method].append(mean)
+            method_values[item.method].append(score)
         else:
-            holdout_means[item.case_id] = mean
+            holdout_scores[item.case_id] = score
 
-    development_method_means = {
+    development_means: dict[str, float | None] = {
         method: fmean(values) if values else None for method, values in method_values.items()
     }
-    completed = sum(1 for output in outputs if output["complete"] is True)
+    completed = len(document["ratings"])
     return {
         "outputs": outputs,
-        "development_method_means": development_method_means,
-        "holdout_means": holdout_means,
+        "development_method_means": development_means,
+        "development_ranking": _rank_methods(development_means),
+        "holdout_scores": holdout_scores,
         "completed": completed,
         "total": len(REVIEW_ITEMS),
         "all_complete": completed == len(REVIEW_ITEMS),
     }
 
 
-def _format_score(score: float | None) -> str:
-    if score is None:
+def _format_score(score: object) -> str:
+    if not isinstance(score, (int, float)):
         return ""
-    if score == -1.0:
-        return "N/A"
-    return f"{score:g}"
+    return f"{float(score):g}"
 
 
 def _format_mean(value: object) -> str:
     if not isinstance(value, (int, float)):
         return "pending"
-    return f"{float(value):.4f}"
+    return f"{float(value):.3f}"
 
 
 def render_csv(document: ReviewDocument) -> str:
-    """Render one durable row per review output."""
+    """Render one durable row per generated output."""
 
-    summary = summarize(document)
+    rows = cast(list[dict[str, object]], summarize(document)["outputs"])
     output = io.StringIO(newline="")
-    fields = [
-        "item_id",
-        "case_id",
-        "candidate_label",
-        "method",
-        "split",
-        *DIMENSIONS,
-        "mean",
-        "issues",
-        "note",
-    ]
-    writer = csv.DictWriter(output, fieldnames=fields)
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "item_id",
+            "case_id",
+            "candidate_label",
+            "method",
+            "split",
+            "score",
+            "note",
+        ],
+    )
     writer.writeheader()
-    for row in cast(list[dict[str, object]], summary["outputs"]):
-        scores = cast(dict[str, float], row["scores"])
+    for row in rows:
         writer.writerow(
             {
                 "item_id": row["item_id"],
@@ -381,11 +303,7 @@ def render_csv(document: ReviewDocument) -> str:
                 "candidate_label": row["label"],
                 "method": row["method"],
                 "split": row["split"],
-                **{dimension: _format_score(scores.get(dimension)) for dimension in DIMENSIONS},
-                "mean": (
-                    f"{cast(float, row['mean']):.4f}" if row["mean"] is not None else ""
-                ),
-                "issues": "; ".join(cast(list[str], row["issues"])),
+                "score": _format_score(row["score"]),
                 "note": row["note"],
             }
         )
@@ -393,7 +311,7 @@ def render_csv(document: ReviewDocument) -> str:
 
 
 def render_markdown(document: ReviewDocument) -> str:
-    """Render a submission-ready attributed human-review report."""
+    """Render a concise attributed human-review report."""
 
     summary = summarize(document)
     rater = document["rater"]
@@ -402,83 +320,49 @@ def render_markdown(document: ReviewDocument) -> str:
         "",
         f"- **Rater:** {rater['name'] or 'Not supplied'}",
         f"- **Review date:** {rater['review_date'] or 'Not supplied'}",
-        f"- **Review type:** {rater['review_type'] or 'Author human review'}",
+        "- **Scale:** 1 = Preserved; 0.5 = Noticeable drift; 0 = Major failure",
         (
-            "- **Disclosure:** This is an attributed author sanity check, "
+            "- **Disclosure:** Attributed author sanity check, "
             "not independent or multi-rater evaluation."
         ),
         "",
         "## Per-output ratings",
         "",
-        (
-            "| Output | Method | Color | Print/logo | Silhouette/length | Construction | "
-            "Texture/material | Presence | Mean | Main issue |"
-        ),
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| Output | Method | Split | Score | Note |",
+        "| --- | --- | --- | ---: | --- |",
     ]
     for row in cast(list[dict[str, object]], summary["outputs"]):
-        scores = cast(dict[str, float], row["scores"])
-        issue_parts = cast(list[str], row["issues"])
-        note = cast(str, row["note"])
-        issue = ", ".join(issue_parts)
-        if note:
-            issue = f"{issue}: {note}" if issue else note
+        label = (
+            f"{row['case_id']} — {row['label']}"
+            if row["split"] == "development"
+            else f"{row['case_id']} — output"
+        )
+        note = cast(str, row["note"]).replace("|", "\\|") or "—"
         lines.append(
-            "| "
-            + " | ".join(
-                [
-                    f"{row['case_id']} — {row['method']}",
-                    cast(str, row["method"]),
-                    *[_format_score(scores.get(dimension)) or "—" for dimension in DIMENSIONS],
-                    _format_mean(row["mean"]),
-                    issue.replace("|", "\\|") or "—",
-                ]
-            )
-            + " |"
+            f"| {label} | {row['method']} | {row['split']} | "
+            f"{_format_score(row['score']) or '—'} | {note} |"
         )
 
     lines.extend(["", "## Development method means", ""])
-    method_means = cast(dict[str, object], summary["development_method_means"])
-    for method in ("baseline", "structured", "best-of-two"):
-        lines.append(f"- **{method}:** {_format_mean(method_means[method])}")
+    means = cast(dict[str, object], summary["development_method_means"])
+    for method in METHOD_ORDER:
+        lines.append(f"- **{method}:** {_format_mean(means[method])}")
+
+    lines.extend(["", "## Development ranking", ""])
+    ranking = cast(list[dict[str, object]], summary["development_ranking"])
+    if ranking:
+        for group in ranking:
+            methods = " = ".join(cast(list[str], group["methods"]))
+            lines.append(f"- **Rank {group['rank']}:** {methods} ({_format_mean(group['mean'])})")
+    else:
+        lines.append("- Pending")
 
     lines.extend(["", "## Frozen holdouts", ""])
-    holdouts = cast(dict[str, float], summary["holdout_means"])
+    holdouts = cast(dict[str, float], summary["holdout_scores"])
     for case_id in ("H01", "H02"):
-        lines.append(f"- **{case_id}:** {_format_mean(holdouts.get(case_id))}")
+        lines.append(f"- **{case_id}:** {_format_score(holdouts.get(case_id)) or 'pending'}")
 
-    overall = document["overall"]
-    lines.extend(
-        [
-            "",
-            "## Overall judgments",
-            "",
-            (
-                "1. **Structured consistently outperformed baseline:** "
-                f"{overall['structured_outperformed'] or 'Pending'}"
-            ),
-            f"   - {overall['structured_reason'] or 'No reason supplied.'}",
-            (
-                "2. **Best-of-two consistently outperformed baseline:** "
-                f"{overall['best_of_two_outperformed'] or 'Pending'}"
-            ),
-            f"   - {overall['best_of_two_reason'] or 'No reason supplied.'}",
-            (
-                "3. **Any output ready for brand-critical catalog use:** "
-                f"{overall['brand_critical_ready'] or 'Pending'}"
-            ),
-            f"   - {overall['brand_critical_reason'] or 'No reason supplied.'}",
-            (
-                "4. **Automatic-perfect outputs contained obvious errors:** "
-                f"{overall['automatic_perfect_errors'] or 'Pending'}"
-            ),
-            f"   - {overall['automatic_perfect_examples'] or 'No examples supplied.'}",
-            f"5. **Preferred development method:** {overall['preferred_method'] or 'Pending'}",
-            f"   - {overall['preferred_method_reason'] or 'No reason supplied.'}",
-            "",
-            f"Completed outputs: **{summary['completed']}/{summary['total']}**.",
-        ]
-    )
+    lines.extend(["", f"Completed outputs: **{summary['completed']}/{summary['total']}**."])
     return "\n".join(lines) + "\n"
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import shutil
 import tempfile
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -40,6 +41,12 @@ class ReviewStore:
             value = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError(f"could not read review data at {self.path}: {exc}") from exc
+        if isinstance(value, dict) and value.get("schema_version") == 1:
+            archive = self.path.with_name(f"{self.path.stem}.legacy-v1{self.path.suffix}")
+            shutil.copy2(self.path, archive)
+            document = empty_document()
+            self.save(document)
+            return document
         return validate_document(value)
 
     def save(self, document: ReviewDocument) -> None:
